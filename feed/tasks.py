@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from celery import shared_task
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -27,8 +29,8 @@ def notificar_autor_sobre_interacao(post_id: str, tipo: str) -> None:
     event = "feed_like" if tipo == "like" else "feed_comment"
     try:
         enviar_para_usuario(post.autor, event, {"post_id": str(post.id)})
-    except Exception:  # pragma: no cover - melhor esforço
-        pass
+    except Exception as exc:  # pragma: no cover - melhor esforço
+        logging.exception(exc)
 
 
 @shared_task
@@ -47,8 +49,8 @@ def notify_new_post(post_id: str) -> None:
             try:
                 enviar_para_usuario(user, "feed_new_post", {"post_id": str(post.id)})
                 NOTIFICATIONS_SENT.inc()
-            except Exception:  # pragma: no cover - melhor esforço
-                pass
+            except Exception as exc:  # pragma: no cover - melhor esforço
+                logging.exception(exc)
 
 
 @shared_task
@@ -61,5 +63,5 @@ def notify_post_moderated(post_id: str, status: str) -> None:
         enviar_para_usuario(
             post.autor, "feed_post_moderated", {"post_id": str(post.id), "status": status}
         )
-    except Exception:  # pragma: no cover - melhor esforço
-        pass
+    except Exception as exc:  # pragma: no cover - melhor esforço
+        logging.exception(exc)
