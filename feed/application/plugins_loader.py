@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from importlib import import_module
+import logging
 from typing import List
 
 from django.db import models
@@ -21,5 +22,8 @@ def load_plugins_for(organizacao: models.Model) -> List[FeedPlugin]:
             plugins.append(plugin)
         except Exception:
             # Falha ao carregar plugin não deve interromper feed
+            logging.getLogger(__name__).exception(
+                "Falha ao carregar plugin do feed", extra={"module_path": config.module_path}
+            )
             continue
     return plugins

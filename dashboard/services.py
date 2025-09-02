@@ -9,8 +9,6 @@ from django.utils import timezone
 
 from accounts.models import User, UserType
 from agenda.models import Evento, InscricaoEvento
-from chat.models import ChatMessage
-from discussao.models import RespostaDiscussao, TopicoDiscussao
 from empresas.models import Empresa
 from feed.models import Post, PostView, Reacao, Tag
 from financeiro.models import LancamentoFinanceiro
@@ -202,27 +200,6 @@ class DashboardService:
             qs = qs.filter(Q(topico__evento_id=evento_id) | Q(topico__categoria__evento_id=evento_id))
         return qs.count()
 
-    @staticmethod
-    def calcular_mensagens_chat(
-        organizacao_id: Optional[int] = None,
-        nucleo_id: Optional[int] = None,
-        evento_id: Optional[int] = None,
-        data_inicio: Optional[datetime] = None,
-        data_fim: Optional[datetime] = None,
-    ) -> int:
-        """Count chat messages applying optional filters."""
-        qs = ChatMessage.objects.select_related("channel")
-        if data_inicio:
-            qs = qs.filter(created__gte=data_inicio)
-        if data_fim:
-            qs = qs.filter(created__lte=data_fim)
-        if evento_id:
-            qs = qs.filter(channel__contexto_tipo="evento", channel__contexto_id=evento_id)
-        elif nucleo_id:
-            qs = qs.filter(channel__contexto_tipo="nucleo", channel__contexto_id=nucleo_id)
-        elif organizacao_id:
-            qs = qs.filter(channel__contexto_tipo="organizacao", channel__contexto_id=organizacao_id)
-        return qs.count()
 
     @staticmethod
     def calcular_reacoes_feed(
@@ -435,7 +412,7 @@ class DashboardService:
             "num_empresas": Empresa.objects.select_related("usuario", "usuario__organizacao"),
             "num_eventos": Evento.objects.select_related("nucleo"),
             "num_posts_feed_total": Post.objects.all(),
-            "num_mensagens_chat": ChatMessage.objects.all(),
+            # "num_mensagens_chat": ChatMessage.objects.all(),  # ChatMessage removido
             "num_topicos": TopicoDiscussao.objects.all(),
             "num_respostas": RespostaDiscussao.objects.all(),
         }
@@ -535,10 +512,7 @@ class DashboardMetricsService:
                 Post.objects.select_related("organizacao", "nucleo", "evento", "autor__organizacao"),
                 "created_at",
             ),
-            "num_mensagens_chat": (
-                ChatMessage.objects.select_related("channel"),
-                "created",
-            ),
+            # "num_mensagens_chat": (ChatMessage.objects.select_related("channel"), "created"),  # ChatMessage removido
             "num_topicos": (
                 TopicoDiscussao.objects.select_related(
                     "categoria__organizacao",

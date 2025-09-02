@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.cache import cache
+import logging
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
@@ -40,4 +41,12 @@ def notificar_comment(sender, instance, created, **kwargs):
 @receiver([post_save, post_delete], sender=Post)
 def limpar_cache_feed(**_kwargs) -> None:
     """Remove entradas de cache após alterações em posts."""
-    cache.clear()
+    try:
+        # Preferir limpar somente chaves do feed quando possível
+        if hasattr(cache, "delete_pattern"):
+            cache.delete_pattern("feed:*")  # type: ignore[attr-defined]
+        else:
+            cache.clear()
+    except Exception:  # pragma: no cover - melhor esforço
+        # Evita que falhas na limpeza de cache quebrem o fluxo principal
+        logging.getLogger(__name__).exception("Falha ao limpar cache do feed")

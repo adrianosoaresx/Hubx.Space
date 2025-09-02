@@ -78,19 +78,7 @@
             <i class="fas fa-user"></i>
           {% endif %}
         </a>
-        <div class="relative">
-          <button id="notif-btn" class="relative" aria-label="{% trans 'Notificações de chat' %}" aria-haspopup="true" aria-expanded="false">
-            <i class="fas fa-bell"></i>
-            <span id="notif-count" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center" aria-live="polite">0</span>
-          </button>
-          <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-64 bg-white border rounded shadow-lg" role="menu" aria-label="{% trans 'Notificações' %}">
-            <div class="p-2 border-b text-sm space-y-1">
-              <label class="flex items-center gap-1"><input type="checkbox" id="notif-sound" />{% trans 'Som' %}</label>
-              <label class="flex items-center gap-1"><input type="checkbox" id="notif-vibrate" />{% trans 'Vibração' %}</label>
-            </div>
-            <ul id="notif-list" class="max-h-64 overflow-y-auto text-sm"></ul>
-          </div>
-        </div>
+        
         {% endif %}
         <a href="{% url 'dashboard:dashboard' %}" class="flex items-center gap-x-2 hover:text-primary transition">
           <i class="fas fa-tachometer-alt"></i> Dashboard
@@ -101,8 +89,7 @@
         <a href="{% url 'agenda:calendario' %}" class="flex items-center gap-x-2 hover:text-primary transition">
           <i class="fas fa-calendar-alt"></i> Agenda
         </a>
-        <a href="{% url 'discussao:categorias' %}" class="flex items-center gap-x-2 hover:text-primary transition">
-          <i class="fas fa-comments"></i> Discussão
+
         </a>
         <a href="{% url 'feed:listar' %}" class="flex items-center gap-x-2 hover:text-primary transition">
           <i class="fas fa-rss"></i> Feed
@@ -149,7 +136,7 @@
     </div>
   </footer>
 
-  <script src="{% static 'chat/js/notifications_socket.js' %}"></script>
+  
   <script src="{% static 'notificacoes/js/push_socket.js' %}"></script>
   <script src="https://unpkg.com/htmx.org@{{ HTMX_VERSION }}"></script>
   <script src="{% static 'js/dashboard.js' %}"></script>
