@@ -16,9 +16,13 @@ from .tasks import notificar_autor_sobre_interacao
 def notificar_like(sender, instance, created, **kwargs):
     if created:
         try:
-            enviar_para_usuario(instance.post.autor, "feed_like", {"post_id": str(instance.post.id)})
-        except Exception:  # pragma: no cover - melhor esforço
-            pass
+            enviar_para_usuario(
+                instance.post.autor,
+                "feed_like",
+                {"post_id": str(instance.post.id)},
+            )
+        except Exception as exc:  # pragma: no cover - melhor esforço
+            logging.exception(exc)
         if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
             notificar_autor_sobre_interacao(instance.post_id, "like")
         else:
@@ -29,9 +33,13 @@ def notificar_like(sender, instance, created, **kwargs):
 def notificar_comment(sender, instance, created, **kwargs):
     if created:
         try:
-            enviar_para_usuario(instance.post.autor, "feed_comment", {"post_id": str(instance.post.id)})
-        except Exception:  # pragma: no cover - melhor esforço
-            pass
+            enviar_para_usuario(
+                instance.post.autor,
+                "feed_comment",
+                {"post_id": str(instance.post.id)},
+            )
+        except Exception as exc:  # pragma: no cover - melhor esforço
+            logging.exception(exc)
         if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
             notificar_autor_sobre_interacao(instance.post_id, "comment")
         else:
