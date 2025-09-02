@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from asgiref.sync import async_to_sync
@@ -73,5 +75,5 @@ def log_changes(sender, instance, created, **kwargs):
                 f"configuracoes_{instance.user.id}",
                 {"type": "configuracoes.message", "data": changes},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.exception(exc)
