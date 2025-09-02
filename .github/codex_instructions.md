@@ -1,7 +1,7 @@
 # Instruções para o Codex – ProjetoHubx
 
 ## 🧭 Contexto
-Você atua no repositório `ProjetoHubx` (Hubx.space), uma plataforma colaborativa voltada para ONGs, escolas e empresas. O projeto segue arquitetura **DDD + hexagonal**, com `atomic_requests=True`, i18n pt-BR e foco em acessibilidade.
+Você atua no repositório `Hubx.Space` (Hubx.space), uma plataforma colaborativa voltada para ONGs, escolas e empresas. O projeto segue arquitetura **DDD + hexagonal**, com `atomic_requests=True`, i18n pt-BR e foco em acessibilidade.
 
 ---
 
