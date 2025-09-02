@@ -82,7 +82,14 @@ class Post(TimeStampedModel, SoftDeleteModel):
         is_new = self._state.adding
         super().save(*args, **kwargs)
         moderacao, _created = ModeracaoPost.objects.get_or_create(post=self)
-    # novo post começa pendente (já coberto pelo default do modelo)
+        if is_new and _created:
+            from .tasks import notify_new_post
+
+            if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+                notify_new_post(self.id)
+            else:
+                notify_new_post.delay(self.id)
+        # novo post começa pendente (já coberto pelo default do modelo)
         banned = getattr(settings, "FEED_BAD_WORDS", [])
         if any(bad.lower() in (self.conteudo or "").lower() for bad in banned):
             if moderacao.status != "pendente":
