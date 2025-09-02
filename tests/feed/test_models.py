@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
@@ -79,3 +80,14 @@ def test_requires_evento(admin_user, organizacao):
     )
     with pytest.raises(ValidationError):
         post.full_clean()
+
+
+@patch("feed.tasks.notify_new_post")
+@pytest.mark.django_db
+def test_post_save_triggers_notification(mock_notify, admin_user, organizacao):
+    post = Post.objects.create(autor=admin_user, organizacao=organizacao, tipo_feed="global")
+    mock_notify.assert_called_once_with(post.id)
+    mock_notify.reset_mock()
+    post.conteudo = "update"
+    post.save()
+    mock_notify.assert_not_called()
