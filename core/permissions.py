@@ -1,6 +1,17 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import UserPassesTestMixin
-from rest_framework.permissions import BasePermission
+
+# DRF é usado em permissões de API; caso não esteja disponível no ambiente do editor,
+# definimos um stub mínimo para não quebrar análise estática.
+try:  # pragma: no cover - apenas para ambientes sem DRF instalado
+    from rest_framework.permissions import BasePermission
+except Exception:  # pragma: no cover
+    class BasePermission:  # type: ignore
+        def has_permission(self, request, view):  # noqa: D401
+            return True
+
+        def has_object_permission(self, request, view, obj):  # noqa: D401
+            return True
 
 from accounts.models import UserType
 
@@ -73,7 +84,16 @@ class IsSameOrganization(BasePermission):
     """Allow access only to objects within the user's organization."""
 
     def has_object_permission(self, request, view, obj) -> bool:
-        return getattr(obj, "organization_id", None) == getattr(request.user, "organization_id", None)
+        # Suportar atributos em inglês e português (organization/organizacao)
+        obj_org_id = getattr(obj, "organizacao_id", None)
+        if obj_org_id is None:
+            obj_org_id = getattr(obj, "organization_id", None)
+
+        user_org_id = getattr(request.user, "organizacao_id", None)
+        if user_org_id is None:
+            user_org_id = getattr(request.user, "organization_id", None)
+
+        return obj_org_id is not None and user_org_id is not None and obj_org_id == user_org_id
 
 
 class ClienteGerenteRequiredMixin(UserPassesTestMixin):

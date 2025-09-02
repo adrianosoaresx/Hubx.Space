@@ -185,7 +185,10 @@ class NovaPostagemView(LoginRequiredMixin, CreateView):
         return context
 
     def form_valid(self, form):
-    # Upload de mídia já tratado no PostForm.clean via upload_media
+        for field in ["image", "pdf", "video"]:
+            file = form.cleaned_data.get(field)
+            if file:
+                setattr(form.instance, field, upload_media(file))
         form.instance.autor = self.request.user
         form.instance.organizacao = self.request.user.organizacao
         response = super().form_valid(form)
@@ -271,7 +274,10 @@ def post_update(request, pk):
                 files["image"] = file
         form = PostForm(request.POST, files, instance=post, user=request.user)
         if form.is_valid():
-            # Upload de mídia já tratado no PostForm.clean via upload_media
+            for field in ["image", "pdf", "video"]:
+                file = form.cleaned_data.get(field)
+                if file:
+                    setattr(form.instance, field, upload_media(file))
             form.instance.organizacao = request.user.organizacao
             form.save()
             if request.headers.get("HX-Request"):
