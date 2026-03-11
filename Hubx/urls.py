@@ -1,0 +1,112 @@
+"""Hubx URL Configuration."""
+
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.contrib.staticfiles.views import serve as static_serve
+from django.urls import include, path
+from django.shortcuts import redirect
+from django.views.i18n import JavaScriptCatalog
+from accounts.views import confirm_email
+
+
+def legacy_password_reset_redirect(request):
+    token = request.GET.get("token")
+    if token:
+        return redirect("accounts:password_reset_confirm", code=token)
+    return redirect("accounts:password_reset")
+
+
+urlpatterns = [
+    # Django admin
+    path("admin/", admin.site.urls),
+    # Página inicial (app core)
+    path("", include(("core.urls", "core"), namespace="core")),
+    # Compatibilidade: link público de confirmação enviado por e-mail
+    path("confirm-email/", confirm_email, name="confirm_email_public"),
+    # Compatibilidade: link legado de redefinição de senha com query string
+    path("reset-password/", legacy_password_reset_redirect, name="password_reset_legacy"),
+    # Apps de autenticação/usuário
+    path("accounts/", include(("accounts.urls", "accounts"), namespace="accounts")),
+    path("portfolio/", include(("portfolio.urls", "portfolio"), namespace="portfolio")),
+    path("conexoes/", include(("conexoes.urls", "conexoes"), namespace="conexoes")),
+    path("tokens/", include(("tokens.urls", "tokens"), namespace="tokens")),
+    path("ai-chat/", include(("ai_chat.urls", "ai_chat"), namespace="ai_chat")),
+    # CRUD de Empresas, Organizações e Núcleos (front‑end)
+    path("organizacoes/", include(("organizacoes.urls", "organizacoes"), namespace="organizacoes")),
+    path("nucleos/", include(("nucleos.urls", "nucleos"), namespace="nucleos")),
+    path("eventos/", include(("eventos.urls", "eventos"), namespace="eventos")),
+    # Discussão e Feed (web)
+    path("feed/", include(("feed.urls", "feed"), namespace="feed")),
+    path("notificacoes/", include(("notificacoes.urls", "notificacoes"), namespace="notificacoes")),
+    path(
+        "configuracoes/",
+        include(("configuracoes.urls", "configuracoes"), namespace="configuracoes"),
+    ),
+    path(
+        "membros/",
+        include(("membros.urls", "membros"), namespace="membros"),
+    ),
+    path(
+        "dashboard/",
+        include(("dashboard.urls", "dashboard"), namespace="dashboard"),
+    ),
+    path("jsi18n/", JavaScriptCatalog.as_view(), name="javascript-catalog"),
+    path("select2/", include("django_select2.urls")),
+    # APIs REST (subcaminhos específicos)
+    path(
+        "api/organizacoes/",
+        include(("organizacoes.api_urls", "organizacoes_api"), namespace="organizacoes_api"),
+    ),
+    path(
+        "api/nucleos/",
+        include(("nucleos.api_urls", "nucleos_api"), namespace="nucleos_api"),
+    ),
+    path(
+        "api/audit/",
+        include(("audit.api_urls", "audit_api"), namespace="audit_api"),
+    ),
+    path(
+        "api/tokens/",
+        include(("tokens.api_urls", "tokens_api"), namespace="tokens_api"),
+    ),
+    path(
+        "api/configuracoes/",
+        include(("configuracoes.api_urls", "configuracoes_api"), namespace="configuracoes_api"),
+    ),
+    path(
+        "api/notificacoes/",
+        include(("notificacoes.api_urls", "notificacoes_api"), namespace="notificacoes_api"),
+    ),
+    path(
+        "api/accounts/",
+        include(("accounts.api_urls", "accounts_api"), namespace="accounts_api"),
+    ),
+    path(
+        "api/conexoes/",
+        include(("conexoes.api_urls", "conexoes_api"), namespace="conexoes_api"),
+    ),
+    path(
+        "api/feed/",
+        include(("feed.api_urls", "feed_api"), namespace="feed_api"),
+    ),
+    path(
+        "api/eventos/",
+        include(("eventos.api_urls", "eventos_api"), namespace="eventos_api"),
+    ),
+    path(
+        "api/ai-chat/",
+        include(("ai_chat.api_urls", "ai_chat_api"), namespace="ai_chat_api"),
+    ),
+    path("pagamentos/", include(("pagamentos.urls", "pagamentos"), namespace="pagamentos")),
+    path("", include("django_prometheus.urls")),
+]
+
+# Arquivos de mídia em desenvolvimento
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += [path("silk/", include("silk.urls", namespace="silk"))]
+    urlpatterns += [
+        path("service-worker.js", static_serve, kwargs={"path": "service-worker.js"}),
+        path("manifest.json", static_serve, kwargs={"path": "manifest.json"}),
+    ]

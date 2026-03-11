@@ -1,0 +1,558 @@
+{% extends 'base.html' %}
+{% load i18n l10n static lucide_icons %}
+
+{% block title %}{{ title|default:object.titulo|default:_('Eventos') }}{% endblock %}
+
+{% block hero %}{% include 'eventos/componentes/hero_evento_detail.html' with evento=evento %}{% endblock %}
+
+{% block content %}
+  <header class="mb-6">
+    <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)] md:text-4xl">{{ object.titulo }}</h1>
+  </header>
+
+  <div class="flex flex-col gap-6">
+      <article class="card">
+        <details class="group">
+          <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+            <div class="flex items-start gap-3">
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/15">
+                {% lucide 'info' class='h-6 w-6' aria_hidden='true' %}
+              </span>
+              <div class="space-y-1">
+                <h2 class="text-xl font-semibold">{% trans "Informações" %}</h2>
+                <p class="text-sm text-[var(--text-secondary)]">{% trans "Dados gerais do evento" %}</p>
+              </div>
+            </div>
+            <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+              {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+            </span>
+          </summary>
+          <div class="card-body space-y-6">
+            <dl class="space-y-6 text-sm">
+              <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                  <dt class="text-[var(--text-secondary)]">{% trans "Status" %}</dt>
+                  <dd class="font-medium text-[var(--text-primary)]">{{ object.get_status_display }}</dd>
+                </div>
+                <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                  <dt class="text-[var(--text-secondary)]">{% trans "Público alvo" %}</dt>
+                  <dd class="font-medium text-[var(--text-primary)]">{{ object.get_publico_alvo_display }}</dd>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                  <dt class="text-[var(--text-secondary)]">{% trans "Início" %}</dt>
+                  <dd class="font-medium text-[var(--text-primary)]">{{ object.data_inicio|date:'SHORT_DATETIME_FORMAT' }}</dd>
+                </div>
+                <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                  <dt class="text-[var(--text-secondary)]">{% trans "Fim" %}</dt>
+                  <dd class="font-medium text-[var(--text-primary)]">{{ object.data_fim|date:'SHORT_DATETIME_FORMAT' }}</dd>
+                </div>
+              </div>
+
+              {% if object.local or object.cidade or object.estado or object.cep %}
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {% if object.local %}
+                    <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                      <dt class="text-[var(--text-secondary)]">{% trans "Local" %}</dt>
+                      <dd class="font-medium text-[var(--text-primary)]">{{ object.local }}</dd>
+                    </div>
+                  {% endif %}
+                  {% if object.cidade or object.estado %}
+                    <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                      <dt class="text-[var(--text-secondary)]">{% trans "Cidade / Estado" %}</dt>
+                      <dd class="font-medium text-[var(--text-primary)]">
+                        {{ object.cidade }}{% if object.cidade and object.estado %} - {% endif %}{{ object.estado }}
+                      </dd>
+                    </div>
+                  {% endif %}
+                  {% if object.cep %}
+                    <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                      <dt class="text-[var(--text-secondary)]">{% trans "CEP" %}</dt>
+                      <dd class="font-medium text-[var(--text-primary)]">{{ object.cep }}</dd>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endif %}
+
+              <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2 sm:col-span-2 lg:col-span-3">
+                  <dt class="text-[var(--text-secondary)]">{% trans "Descrição" %}</dt>
+                  <dd class="font-medium text-[var(--text-primary)] whitespace-pre-line">{{ object.descricao|linebreaksbr }}</dd>
+                </div>
+                {% if object.cronograma %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2 sm:col-span-2 lg:col-span-3">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Cronograma" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)] whitespace-pre-line">{{ object.cronograma|linebreaksbr }}</dd>
+                  </div>
+                {% endif %}
+                {% if object.informacoes_adicionais %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2 sm:col-span-2 lg:col-span-3">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Informações adicionais" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)] whitespace-pre-line">{{ object.informacoes_adicionais|linebreaksbr }}</dd>
+                  </div>
+                {% endif %}
+                {% if object.participantes_maximo and pode_ver_campos_restritos %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Máximo de participantes" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)]">{{ object.participantes_maximo }}</dd>
+                  </div>
+                {% endif %}
+                {% if object.gratuito %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Evento gratuito" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)]">{% trans "Sim" %}</dd>
+                  </div>
+                {% else %}
+                  {% if object.valor_associado is not None %}
+                    <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                      <dt class="text-[var(--text-secondary)]">{% trans "Valor para associados" %}</dt>
+                      <dd class="font-medium text-[var(--text-primary)]">{{ object.valor_associado|localize }}</dd>
+                    </div>
+                  {% endif %}
+                  {% if object.valor_nucleado is not None %}
+                    <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                      <dt class="text-[var(--text-secondary)]">{% trans "Valor para nucleados" %}</dt>
+                      <dd class="font-medium text-[var(--text-primary)]">{{ object.valor_nucleado|localize }}</dd>
+                    </div>
+                  {% endif %}
+                {% endif %}
+                {% if object.orcamento_estimado %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Orçamento estimado" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)]">{{ object.orcamento_estimado }}</dd>
+                  </div>
+                {% endif %}
+                {% if object.valor_gasto %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Valor gasto" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)]">{{ object.valor_gasto }}</dd>
+                  </div>
+                {% endif %}
+                {% if pode_editar_evento %}
+                  <div class="flex flex-col gap-2 rounded-lg border border-[var(--border)] px-3 py-2">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Briefing" %}</dt>
+                    <dd class="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
+                      {% if object.briefing %}
+                        <span>
+                          {% trans "Template selecionado" %}:
+                          <strong class="font-medium text-[var(--text-primary)]">{{ object.briefing.template.nome }}</strong>
+                        </span>
+                        <div class="flex flex-wrap gap-2">
+                          <a href="{% url 'eventos:briefing_preencher' object.pk %}" class="btn btn-secondary btn-sm">
+                            {% trans "Editar briefing" %}
+                          </a>
+                          <a href="{% url 'eventos:briefing_visualizar' object.pk %}" class="btn btn-ghost btn-sm">
+                            {% trans "Visualizar" %}
+                          </a>
+                        </div>
+                      {% else %}
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-sm w-fit"
+                          hx-get="{% url 'eventos:briefing_selecionar' object.pk %}"
+                          hx-target="#modal"
+                          hx-trigger="click"
+                          hx-swap="innerHTML"
+                          hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+                        >
+                          {% trans "Criar Briefing" %}
+                        </button>
+                      {% endif %}
+                    </dd>
+                  </div>
+                {% endif %}
+              </div>
+            </dl>
+
+            {% if inscricao and avaliacao_permitida %}
+              <section aria-labelledby="evento-avaliacao" class="space-y-4">
+                <h3 id="evento-avaliacao" class="text-lg font-semibold text-[var(--text-primary)]">{% trans "Avaliação" %}</h3>
+                <form method="post" action="{% url 'eventos:evento_feedback' object.pk %}" class="space-y-6">
+                  {% csrf_token %}
+                  {{ feedback_form.non_field_errors }}
+                  {% include '_forms/field.html' with field=feedback_form.nota %}
+                  {% include '_forms/field.html' with field=feedback_form.comentario %}
+                  <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+                    <button type="submit" class="btn btn-primary" aria-label="{% trans 'Enviar avaliação' %}">{% trans 'Enviar avaliação' %}</button>
+                  </div>
+                </form>
+              </section>
+            {% endif %}
+
+            <div class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-[var(--border)]">
+              <div class="flex flex-wrap justify-end gap-3">
+                {% if pode_editar_evento %}
+                  <a href="{% url 'eventos:evento_editar' object.pk %}"
+                     class="btn btn-secondary"
+                     aria-label="{% trans 'Editar evento' %}">{% trans 'Editar' %}</a>
+                {% endif %}
+                {% if pode_excluir_evento %}
+                  <a
+                    href="{% url 'eventos:evento_excluir' object.pk %}"
+                    hx-get="{% url 'eventos:evento_excluir' object.pk %}"
+                    hx-target="#modal"
+                    hx-trigger="click"
+                    hx-swap="innerHTML"
+                    hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+                    class="btn btn-danger"
+                    aria-label="{% trans 'Excluir evento' %}"
+                  >{% trans 'Excluir' %}</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </details>
+        </article>
+
+        {% include 'eventos/partials/portfolio_card.html' %}
+
+        {% if pode_gerenciar_convites %}
+          <article class="card">
+            <details class="group">
+              <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+                <div class="flex items-start gap-3">
+                  <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-600)] shadow-lg shadow-[var(--color-primary-500)]/15">
+                    {% lucide 'mail' class='h-6 w-6' aria_hidden='true' %}
+                  </span>
+                  <div class="space-y-1">
+                    <h2 class="text-xl font-semibold">{% trans "Convites" %}</h2>
+                    <p class="text-sm text-[var(--text-secondary)]">
+                      {% blocktrans count total=convites_total_count %}
+                        {{ total }} convite criado
+                      {% plural %}
+                        {{ total }} convites criados
+                      {% endblocktrans %}
+                    </p>
+                  </div>
+                </div>
+                <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+                  {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+                </span>
+              </summary>
+              <div class="card-body space-y-6">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans "Compartilhe convites personalizados para o evento." %}</p>
+                  <a
+                    class="btn btn-primary btn-sm"
+                    href="{% url 'eventos:evento_convite_criar' object.pk %}"
+                    aria-label="{% trans 'Criar novo convite' %}"
+                  >
+                    {% trans "Novo convite" %}
+                  </a>
+                </div>
+
+                {% include 'eventos/partials/convites_carousel.html' with page=convites_page_obj fetch_url=convites_carousel_fetch_url %}
+              </div>
+            </details>
+          </article>
+        {% endif %}
+
+        {% if pode_ver_inscritos %}
+          <article class="card">
+            <details
+              class="group"
+              hx-get="{% url 'eventos:evento_inscritos' object.pk %}"
+              hx-target="#inscritos-list"
+              hx-trigger="toggle[target.open]"
+              hx-include="#inscritos-filter-form"
+              hx-indicator="#inscritos-loading"
+              hx-push-url="true"
+            >
+              <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+                <div class="flex items-start gap-3">
+                  <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-600)] shadow-lg shadow-[var(--color-primary-500)]/15">
+                    {% lucide 'users' class='h-6 w-6' aria_hidden='true' %}
+                  </span>
+                  <div class="space-y-1">
+                    <h2 class="text-lg font-semibold">{% trans "Inscritos" %}</h2>
+                    <p class="text-sm text-[var(--text-secondary)]" id="inscritos-summary">
+                      {% blocktrans count count=inscritos_total_count %}
+                        {{ count }} inscrito confirmado
+                      {% plural %}
+                        {{ count }} inscritos confirmados
+                      {% endblocktrans %}
+                      {% if vagas_disponiveis is not None %}
+                        ·
+                        {% blocktrans count vagas=vagas_disponiveis %}
+                          {{ vagas }} vaga disponível
+                        {% plural %}
+                          {{ vagas }} vagas disponíveis
+                        {% endblocktrans %}
+                      {% endif %}
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <a
+                    class="btn btn-secondary btn-sm p-2"
+                    href="{% url 'eventos:evento_inscritos_pdf' object.pk %}"
+                    hx-on="click: event.stopPropagation()"
+                    aria-label="{% trans 'Baixar lista de inscritos em PDF' %}"
+                  >
+                    {% lucide 'download' class='h-4 w-4' aria_hidden='true' %}
+                  </a>
+                  <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+                    {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+                  </span>
+                </div>
+              </summary>
+              <div class="card-body space-y-6">
+                <div id="inscritos-filter-container">
+                  {% include 'eventos/partials/inscritos_filter_form.html' with form_id='inscritos-filter-form' search_input_id='inscritos-search' hx_target='#inscritos-list' hx_indicator='#inscritos-loading' hx_push_url='true' search_value=inscritos_search_query %}
+                </div>
+                <section class="space-y-6">
+                  <div id="inscritos-list">
+                    {% include 'eventos/partials/inscritos_list.html' with inscritos_carousel_fetch_url=inscritos_carousel_fetch_url %}
+                  </div>
+                  <div
+                    id="inscritos-loading"
+                    class="htmx-indicator text-center text-sm text-[var(--text-secondary)]"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {% trans 'Carregando inscritos...' %}
+                  </div>
+                </section>
+              </div>
+            </details>
+          </article>
+
+          <article
+            class="card"
+            data-checkin-root
+            data-checkin-url-template="{% url 'eventos:inscricao_checkin' 0 %}"
+          >
+            <details class="group">
+              <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+                <div class="flex items-start gap-3">
+                  <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/15">
+                    {% lucide 'shield-check' class='h-6 w-6' aria_hidden='true' %}
+                  </span>
+                  <div class="space-y-1">
+                    <h2 class="text-lg font-semibold">{% trans "Check-ins" %}</h2>
+                    <p class="text-sm text-[var(--text-secondary)]">{% trans "Acompanhe as presenças confirmadas e realize novos check-ins." %}</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm p-2"
+                    data-checkin-scan-button
+                    aria-label="{% trans 'Ler QR Code de check-in' %}"
+                  >
+                    {% lucide 'scan' class='h-4 w-4' aria_hidden='true' %}
+                  </button>
+                  <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+                    {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+                  </span>
+                </div>
+              </summary>
+              <div class="card-body space-y-4">
+                <p class="text-sm text-[var(--text-secondary)]">{% trans "Use o leitor de QR Code para registrar a presença dos participantes." %}</p>
+                <p
+                  class="text-sm text-[var(--color-danger-600)] hidden"
+                  data-checkin-status
+                  role="status"
+                  aria-live="polite"
+                ></p>
+                <section class="space-y-3" data-checkin-list>
+                  {% if checkins_realizados %}
+                    <ul class="divide-y divide-[var(--border)] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" role="list">
+                      {% for checkin in checkins_realizados %}
+                        <li class="flex items-start justify-between gap-4 px-4 py-3" data-checkin-item>
+                          <div class="space-y-0.5">
+                            <p class="font-medium text-[var(--text-primary)]">{{ checkin.participante_nome }}</p>
+                            <p class="text-xs text-[var(--text-secondary)]">@{{ checkin.user.username }}</p>
+                          </div>
+                          <time datetime="{{ checkin.check_in_realizado_em|date:'c' }}" class="text-sm text-[var(--text-secondary)]">
+                            {{ checkin.check_in_realizado_em|date:'SHORT_DATETIME_FORMAT' }}
+                          </time>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="text-sm text-[var(--text-secondary)]" data-checkin-empty>{% trans "Nenhum check-in realizado até o momento." %}</p>
+                  {% endif %}
+                </section>
+              </div>
+            </details>
+          </article>
+        {% endif %}
+        {% if pode_ver_financeiro %}
+          <article class="card">
+            <details class="group">
+              <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+                <div class="flex items-start gap-3">
+                  <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/15">
+                    {% lucide 'wallet' class='h-6 w-6' aria_hidden='true' %}
+                  </span>
+                  <div class="space-y-1">
+                    <h2 class="text-xl font-semibold">{% trans "Financeiro" %}</h2>
+                    <p class="text-sm text-[var(--text-secondary)]">
+                      {% trans "Acompanhe as confirmações de pagamento das inscrições" %}
+                    </p>
+                  </div>
+                </div>
+                <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+                  {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+                </span>
+              </summary>
+              <div class="card-body space-y-5">
+                <div class="flex flex-wrap gap-2">
+                  <span class="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                    {% lucide 'shield-check' class='h-3.5 w-3.5 text-[var(--color-success-600)]' aria_hidden='true' %}
+                    <span class="text-[var(--text-primary)]">{{ total_pagamentos_validados }}</span>
+                    <span class="uppercase tracking-wide">{% trans "validados" %}</span>
+                  </span>
+                  <span class="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                    {% lucide 'timer' class='h-3.5 w-3.5 text-[var(--color-warning-600)]' aria_hidden='true' %}
+                    <span class="text-[var(--text-primary)]">{{ total_pagamentos_pendentes }}</span>
+                    <span class="uppercase tracking-wide">{% trans "pendentes" %}</span>
+                  </span>
+                  {% if valor_total_pagamentos_validados %}
+                    <span class="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                      {% lucide 'banknote' class='h-3.5 w-3.5 text-[var(--color-primary-600)]' aria_hidden='true' %}
+                      <span class="text-[var(--text-primary)]">{{ valor_total_pagamentos_validados|localize }}</span>
+                      <span class="uppercase tracking-wide">{% trans "em receitas validadas" %}</span>
+                    </span>
+                  {% endif %}
+                </div>
+                <div class="overflow-x-auto">
+                  {% if inscricoes_financeiro %}
+                    <table class="min-w-full table-auto text-sm">
+                      <thead class="bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
+                        <tr>
+                          <th scope="col" class="px-4 py-2 text-left font-semibold">{% trans "Contato" %}</th>
+                          <th scope="col" class="px-4 py-2 text-left font-semibold">{% trans "Razão social" %}</th>
+                          <th scope="col" class="px-4 py-2 text-left font-semibold">{% trans "Forma de pagamento" %}</th>
+                          <th scope="col" class="px-4 py-2 text-left font-semibold">{% trans "Valor" %}</th>
+                          <th scope="col" class="px-4 py-2 text-left font-semibold">{% trans "Validação" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-[var(--border)] text-[var(--text-primary)]">
+                        {% for inscricao in inscricoes_financeiro %}
+                          <tr class="align-middle">
+                            <td class="px-4 py-3">
+                              <div class="flex flex-col">
+                                <span class="font-medium">{{ inscricao.user.contato|default:inscricao.user.display_name|default:inscricao.user.get_full_name|default:inscricao.user.username }}</span>
+                                <span class="text-xs text-[var(--text-secondary)]">@{{ inscricao.user.username }}</span>
+                              </div>
+                            </td>
+                            <td class="px-4 py-3">
+                              {% if inscricao.user.razao_social %}
+                                <span class="font-medium">{{ inscricao.user.razao_social }}</span>
+                              {% else %}
+                                <span class="text-[var(--text-secondary)]">&mdash;</span>
+                              {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                              {% if inscricao.metodo_pagamento %}
+                                <span class="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-3 py-1 text-xs uppercase tracking-wide">
+                                  {% lucide 'credit-card' class='h-3.5 w-3.5 text-[var(--color-primary-600)]' aria_hidden='true' %}
+                                  {{ inscricao.get_metodo_pagamento_display }}
+                                </span>
+                              {% else %}
+                                <span class="text-[var(--text-secondary)]">{% trans "Não informado" %}</span>
+                              {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                              {% if inscricao.valor_pago %}
+                                <span class="font-medium">{{ inscricao.valor_pago|localize }}</span>
+                              {% elif inscricao.get_valor_evento %}
+                                <span class="font-medium">{{ inscricao.get_valor_evento|localize }}</span>
+                              {% else %}
+                                <span class="text-[var(--text-secondary)]">&mdash;</span>
+                              {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                              <div class="inline-flex" id="financeiro-validacao-{{ inscricao.pk }}">
+                                {% include 'eventos/partials/financeiro_validacao_button.html' with inscricao=inscricao %}
+                              </div>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  {% else %}
+                    <p class="text-sm text-[var(--text-secondary)]">{% trans "Nenhuma inscrição para exibir neste momento." %}</p>
+                  {% endif %}
+                </div>
+              </div>
+            </details>
+          </article>
+        {% endif %}
+
+    </div>
+
+    <div
+      id="checkin-scanner-modal"
+      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="checkin-scanner-title"
+      tabindex="-1"
+    >
+      <div class="w-full max-w-lg rounded-xl bg-[var(--bg-primary)] shadow-xl">
+        <div class="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+          <h2 id="checkin-scanner-title" class="text-lg font-semibold text-[var(--text-primary)]">{% trans "Leitor de QR Code" %}</h2>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            data-checkin-close
+            aria-label="{% trans 'Fechar leitor de QR Code' %}"
+          >
+            {% lucide 'x' class='h-4 w-4' aria_hidden='true' %}
+          </button>
+        </div>
+        <div class="space-y-4 px-5 py-4">
+          <div
+            id="checkin-scanner"
+            class="aspect-square w-full max-h-[320px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]"
+            role="presentation"
+          ></div>
+          <p class="text-sm text-[var(--text-secondary)]">{% trans "Aponte a câmera para o QR Code do participante e aguarde a leitura." %}</p>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="checkin-feedback-modal"
+      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="checkin-feedback-title"
+      tabindex="-1"
+    >
+      <div
+        class="w-full max-w-sm rounded-xl border px-4 py-3 text-sm font-medium"
+        data-checkin-feedback-container
+      >
+        <div class="flex items-center justify-between gap-4">
+          <p id="checkin-feedback-title" data-checkin-feedback-message class="text-[var(--text-primary)]"></p>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            data-checkin-feedback-close
+            aria-label="{% trans 'Fechar mensagem de check-in' %}"
+          >
+            {% lucide 'x' class='h-4 w-4' aria_hidden='true' %}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal" role="presentation" aria-live="polite"></div>
+
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+  {% if pode_ver_inscritos %}
+    <script src="{% static 'js/cdn-script-loader.js' %}" defer></script>
+    <script src="{% static 'eventos/js/checkin-cdn-loader.js' %}" defer></script>
+  {% endif %}
+  <script src="{% static 'eventos/js/evento-detail.js' %}" defer></script>
+{% endblock %}

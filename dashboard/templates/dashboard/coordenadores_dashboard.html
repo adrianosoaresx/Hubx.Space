@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% load i18n lucide_icons static %}
+
+{% block title %}{% trans "Dashboard do coordenador" %}{% endblock %}
+
+{% block hero %}
+  {% include "dashboard/componentes/dashboard_hero.html" with title=_("Dashboard do coordenador") subtitle=_("Acompanhe o desempenho dos seus núcleos e eventos.") container_classes="max-w-6xl mx-auto w-full px-6 py-14 md:py-16" %}
+{% endblock %}
+
+{% block content %}
+  <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 md:gap-8">
+    <section aria-labelledby="coordenador-metricas-title" class="flex flex-col gap-6">
+      <details class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-500)] shadow-lg shadow-[var(--color-primary-500)]/15">
+              {% lucide 'gauge' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h2 id="coordenador-metricas-title" class="text-xl font-semibold text-[var(--text-primary)]">
+                {% trans "Visão geral" %}
+              </h2>
+              <p class="text-sm text-[var(--text-secondary)]">
+                {% trans "Resumo de núcleos, eventos e inscrições sob sua coordenação." %}
+              </p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-6">
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {% include "_partials/cards/total_card.html" with label=_("Núcleos coordenados") valor=total_nucleos icon_name="layers" %}
+            {% include "_partials/cards/total_card.html" with label=_("Eventos ativos") valor=total_eventos icon_name="calendar-days" %}
+            {% include "_partials/cards/total_card.html" with label=_("Inscrições confirmadas") valor=total_inscritos icon_name="users" %}
+            {% include "_partials/cards/total_card.html" with label=_("Receita de inscrições") valor=valor_total_inscricoes icon_name="wallet" %}
+          </div>
+
+        </div>
+      </details>
+    </section>
+
+    <section aria-labelledby="coordenador-nucleos-accordion-title" class="flex flex-col gap-6">
+      <details class="card group" aria-labelledby="coordenador-nucleos-accordion-title">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-[var(--color-success-600)]">
+              {% lucide 'layers' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h2 id="coordenador-nucleos-accordion-title" class="text-xl font-semibold text-[var(--text-primary)]">
+                {% trans "Núcleos que coordena" %}
+              </h2>
+              <p class="text-sm text-[var(--text-secondary)]">
+                {% trans "Grupos sob sua responsabilidade." %}
+              </p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-4">
+          {% with nucleos_count=nucleos_coordenados|length %}
+            <div
+              class="space-y-4"
+              data-carousel-root="coordenador-nucleos"
+              data-current-slide="1"
+              data-backend-page="1"
+              data-backend-total-pages="1"
+              aria-label="{% trans 'Navegação de núcleos coordenados' %}"
+            >
+              <div class="relative">
+                <div class="card overflow-hidden rounded-xl" data-carousel-viewport>
+                  <div class="flex transition-transform duration-500 ease-out" data-carousel-track role="list">
+                    {% include 'dashboard/partials/coordenador_nucleo_carousel_slide.html' with nucleos=nucleos_coordenados page_number=1 %}
+                  </div>
+                </div>
+                {% if nucleos_count > 0 %}
+                  <div class="absolute inset-y-0 left-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group mr-3 flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-prev
+                      aria-label="{% trans 'Anterior' %}"
+                    >
+                      {% lucide 'circle-chevron-left' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="absolute inset-y-0 right-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-next
+                      aria-label="{% trans 'Próximo' %}"
+                    >
+                      {% lucide 'circle-chevron-right' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="pointer-events-none absolute inset-y-0 left-0 hidden w-16 bg-gradient-to-r from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-16 bg-gradient-to-l from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                {% endif %}
+              </div>
+            </div>
+          {% endwith %}
+        </div>
+      </details>
+
+      <details class="card group" aria-labelledby="coordenador-eventos-accordion-title">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-[var(--color-info-600)]">
+              {% lucide 'calendar-days' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h2 id="coordenador-eventos-accordion-title" class="text-xl font-semibold text-[var(--text-primary)]">
+                {% trans "Eventos do seu núcleo" %}
+              </h2>
+              <p class="text-sm text-[var(--text-secondary)]">
+                {% trans "Atividades em andamento ou planejadas." %}
+              </p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-4">
+          {% with eventos_count=eventos_coordenados|length %}
+            <div
+              class="space-y-4"
+              data-carousel-root="coordenador-eventos"
+              data-current-slide="1"
+              data-backend-page="1"
+              data-backend-total-pages="1"
+              aria-label="{% trans 'Navegação de eventos coordenados' %}"
+            >
+              <div class="relative">
+                <div class="card overflow-hidden rounded-xl" data-carousel-viewport>
+                  <div class="flex transition-transform duration-500 ease-out" data-carousel-track role="list">
+                    {% include 'dashboard/partials/coordenador_evento_carousel_slide.html' with eventos=eventos_coordenados page_number=1 %}
+                  </div>
+                </div>
+                {% if eventos_count > 0 %}
+                  <div class="absolute inset-y-0 left-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group mr-3 flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-prev
+                      aria-label="{% trans 'Anterior' %}"
+                    >
+                      {% lucide 'circle-chevron-left' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="absolute inset-y-0 right-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-next
+                      aria-label="{% trans 'Próximo' %}"
+                    >
+                      {% lucide 'circle-chevron-right' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="pointer-events-none absolute inset-y-0 left-0 hidden w-16 bg-gradient-to-r from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-16 bg-gradient-to-l from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                {% endif %}
+              </div>
+            </div>
+          {% endwith %}
+        </div>
+      </details>
+    </section>
+
+    <section aria-labelledby="coordenador-visualizacoes-title" class="flex flex-col gap-6">
+      <details class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/20">
+              {% lucide 'chart-line' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h2 id="coordenador-visualizacoes-title" class="text-xl font-semibold text-[var(--text-primary)]">
+                {% trans "Visualizações" %}
+              </h2>
+              <p class="text-sm text-[var(--text-secondary)]">
+                {% trans "Analise a evolução de eventos, inscrições e nucleados ao longo do tempo." %}
+              </p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-6">
+          <form method="get" class="flex flex-wrap items-center justify-end gap-3 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3">
+            <label class="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)]">
+              <span>{% trans "Período" %}</span>
+              <select name="months" class="form-select w-32" data-dashboard-period-select="true">
+                {% for option in dashboard_period_choices %}
+                  <option value="{{ option }}" {% if option == dashboard_period_months %}selected{% endif %}>
+                    {% blocktrans trimmed count months=option %}
+                      Último mês
+                    {% plural %}
+                      Últimos {{ months }} meses
+                    {% endblocktrans %}
+                  </option>
+                {% endfor %}
+              </select>
+            </label>
+          </form>
+
+          <div class="grid gap-6">
+            <figure class="card" aria-labelledby="coordenador-eventos-inscricoes-chart-title">
+              <div class="card-body space-y-6">
+                <div
+                  id="coordenador-eventos-inscricoes-chart"
+                  role="img"
+                  aria-label="{% trans 'Gráfico linear mostrando a evolução de eventos realizados e inscrições confirmadas por mês.' %}"
+                  class="h-80 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)]"
+                ></div>
+                {% if eventos_inscricoes_por_periodo_chart %}
+                  {{ eventos_inscricoes_por_periodo_chart.figure|json_script:"coordenador-eventos-inscricoes-chart-data" }}
+                {% endif %}
+                <figcaption class="space-y-1">
+                  <h3 id="coordenador-eventos-inscricoes-chart-title" class="text-lg font-semibold text-[var(--text-primary)]">
+                    {% trans "Eventos e inscrições por período" %}
+                  </h3>
+                  <p class="text-sm text-[var(--text-muted)]">
+                    {% trans "Volume de eventos realizados e inscrições confirmadas em cada mês." %}
+                  </p>
+                </figcaption>
+              </div>
+            </figure>
+
+            <figure class="card" aria-labelledby="coordenador-nucleados-chart-title">
+              <div class="card-body space-y-6">
+                <div
+                  id="coordenador-nucleados-chart"
+                  role="img"
+                  aria-label="{% trans 'Gráfico linear indicando a quantidade de nucleados ativos por período.' %}"
+                  class="h-80 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)]"
+                ></div>
+                {% if nucleados_por_periodo_chart %}
+                  {{ nucleados_por_periodo_chart.figure|json_script:"coordenador-nucleados-chart-data" }}
+                {% endif %}
+                <figcaption class="space-y-1">
+                  <h3 id="coordenador-nucleados-chart-title" class="text-lg font-semibold text-[var(--text-primary)]">
+                    {% trans "Nucleados por período" %}
+                  </h3>
+                  <p class="text-sm text-[var(--text-muted)]">
+                    {% trans "Total de membros nucleados nos núcleos sob sua coordenação." %}
+                  </p>
+                </figcaption>
+              </div>
+            </figure>
+
+            <figure class="card" aria-labelledby="coordenador-financeiro-chart-title">
+              <div class="card-body space-y-6">
+                <div
+                  id="coordenador-financeiro-chart"
+                  role="img"
+                  aria-label="{% trans 'Gráfico financeiro apresentando o valor total recebido com inscrições por período.' %}"
+                  class="h-80 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)]"
+                ></div>
+                {% if valores_inscricoes_por_periodo_chart %}
+                  {{ valores_inscricoes_por_periodo_chart.figure|json_script:"coordenador-financeiro-chart-data" }}
+                {% endif %}
+                <figcaption class="space-y-1">
+                  <h3 id="coordenador-financeiro-chart-title" class="text-lg font-semibold text-[var(--text-primary)]">
+                    {% trans "Receita das inscrições por período" %}
+                  </h3>
+                  <p class="text-sm text-[var(--text-muted)]">
+                    {% trans "Soma dos valores pagos nas inscrições dos eventos dos núcleos que você coordena." %}
+                  </p>
+                </figcaption>
+              </div>
+            </figure>
+          </div>
+        </div>
+      </details>
+    </section>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script src="{% static 'dashboard/js/dashboard-period-filter.js' %}" defer></script>
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+{% endblock %}

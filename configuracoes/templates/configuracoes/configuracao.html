@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% load i18n static lucide_icons %}
+
+{% block title %}{% trans 'Configurações' %}{% endblock %}
+
+{% block hero %}
+  {% include 'configuracoes/componentes/hero_configuracoes.html' with title=hero_title subtitle=hero_subtitle hero_active_tab=hero_active_tab tab=tab can_manage_operadores=can_manage_operadores %}
+{% endblock %}
+
+{% block content %}
+  <section class="space-y-4">
+    <details class="card group" data-accordion-item {% if seguranca_form.errors %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-center gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/15">
+            {% lucide 'shield-check' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <span class="text-lg font-semibold text-[var(--text-primary)]">{% trans 'Segurança' %}</span>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div id="{{ seguranca_panel_target_id }}" class="card-body space-y-6" data-accordion-panel>
+        {% include 'configuracoes/partials/seguranca.html' with hx_target_id=seguranca_panel_target_id %}
+      </div>
+    </details>
+
+    <details class="card group" data-accordion-item {% if preferencias_form.errors or updated_preferences %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-center gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/20">
+            {% lucide 'sliders-horizontal' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <span class="text-lg font-semibold text-[var(--text-primary)]">{% trans 'Preferências' %}</span>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div id="{{ preferencias_panel_target_id }}" class="card-body space-y-6" data-accordion-panel>
+        {% include 'configuracoes/partials/preferencias.html' with hx_target_id=preferencias_panel_target_id %}
+      </div>
+    </details>
+
+    <details id="notificacoes" class="card group" data-accordion-item {% if open_notificacoes_panel %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-center gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)] shadow-lg shadow-[var(--color-warning-500)]/20">
+            {% lucide 'bell-ring' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <span class="text-lg font-semibold text-[var(--text-primary)]">{% trans 'Notificações' %}</span>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div id="{{ notificacoes_panel_target_id }}" class="card-body space-y-6" data-accordion-panel>
+        {% if can_view_notification_templates %}
+          {% include 'notificacoes/partials/templates_panel.html' with page_obj=notification_templates_page templates_page=notification_templates_page %}
+        {% else %}
+          <div class="alert alert-warning" role="alert">
+            <p class="text-sm text-[var(--text-secondary)]">{% trans 'Você não possui permissão para visualizar os templates de notificação.' %}</p>
+          </div>
+        {% endif %}
+      </div>
+    </details>
+
+  </section>
+
+  <div id="modal" aria-live="polite"></div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script src="{% static 'configuracoes/seguranca-password-toggle.js' %}"></script>
+  {% if tab == 'preferencias' %}
+    <script src="{% static 'configuracoes/preferencias.js' %}"></script>
+  {% endif %}
+  <script>
+    (function () {
+      const modalContainer = document.getElementById('modal');
+      const handleModalClose = () => {
+        if (!modalContainer) {
+          return;
+        }
+        modalContainer.innerHTML = '';
+        if (window.HubxModalTrigger && typeof window.HubxModalTrigger.focus === 'function') {
+          window.HubxModalTrigger.focus();
+          window.HubxModalTrigger = null;
+        }
+      };
+      if (modalContainer) {
+        modalContainer.addEventListener('modal:close', handleModalClose);
+      }
+      document.body.addEventListener('modal:close', handleModalClose);
+      const accordions = document.querySelectorAll('[data-accordion]');
+      const togglePanel = (button, expand) => {
+        if (!button) return;
+        const controls = button.getAttribute('aria-controls');
+        const panel = controls ? document.getElementById(controls) : null;
+        button.setAttribute('aria-expanded', String(expand));
+        const icon = button.querySelector('[data-accordion-icon]');
+        if (icon) {
+          icon.classList.toggle('rotate-180', expand);
+        }
+        if (panel) {
+          panel.toggleAttribute('hidden', !expand);
+        }
+      };
+      accordions.forEach((accordion) => {
+        const buttons = accordion.querySelectorAll('[data-accordion-button]');
+        buttons.forEach((button) => {
+          const isExpanded = button.getAttribute('aria-expanded') === 'true';
+          const icon = button.querySelector('[data-accordion-icon]');
+          if (icon) {
+            icon.classList.toggle('rotate-180', isExpanded);
+          }
+        });
+        buttons.forEach((button) => {
+          button.addEventListener('click', () => {
+            const isExpanded = button.getAttribute('aria-expanded') === 'true';
+            const nextState = !isExpanded;
+            if (nextState && accordion.dataset.accordionSingle !== 'false') {
+              buttons.forEach((other) => {
+                if (other !== button) {
+                  togglePanel(other, false);
+                }
+              });
+            }
+            togglePanel(button, nextState);
+          });
+        });
+      });
+    })();
+  </script>
+{% endblock %}

@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% load i18n static l10n lucide_icons %}
+
+{% block hero %}
+  {% include "accounts/componentes/hero_profile.html" with is_owner=is_owner profile=profile hero_title=hero_title hero_subtitle=hero_subtitle %}
+{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+
+      {% with default_section=perfil_default_section|default:"info" %}
+        <section
+          id="perfil-content"
+          class="space-y-6"
+          data-perfil-default-url="{{ perfil_default_url }}"
+          data-perfil-default-section="{{ default_section }}"
+          data-perfil-mode="{% if is_owner %}owner{% else %}public{% endif %}"
+          data-perfil-username="{{ profile.username }}"
+          data-perfil-public-id="{{ profile.public_id }}"
+          data-perfil-loading-text="{% trans 'Carregando conteúdo...' %}"
+          data-perfil-error-text="{% trans 'Não foi possível carregar esta seção.' %}"
+          aria-live="polite"
+          aria-busy="true"
+          hx-trigger="load"
+          hx-get="{{ perfil_default_url }}"
+          hx-target="#perfil-content"
+          {% if default_section %}
+            hx-push-url="?section={{ default_section }}"
+          {% endif %}
+          {% if is_owner %}
+            hx-vals='{"section":"{{ default_section }}"}'
+          {% else %}
+            hx-vals='{"section":"{{ default_section }}","public_id":"{{ profile.public_id|escapejs }}","username":"{{ profile.username|escapejs }}"}'
+          {% endif %}
+        >
+          <div class="py-6 text-center text-sm text-[var(--text-secondary)]" data-perfil-placeholder>
+            {% trans "Carregando conteúdo..." %}
+          </div>
+        </section>
+      {% endwith %}
+
+      {% if perfil_show_posts_card %}
+        <section id="perfil-posts-accordion" class="card" data-accordion>
+          <div class="card-header flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 text-left sm:flex-1"
+              data-accordion-toggle
+              aria-expanded="false"
+              aria-controls="perfil-posts-panel"
+            >
+              <div class="flex items-start gap-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)] shadow-lg shadow-[var(--primary)]/20">
+                  {% lucide 'newspaper' class='h-6 w-6' aria_hidden='true' %}
+                </span>
+                <div class="space-y-1">
+                  <h3 class="text-xl font-semibold">{% trans "Minhas postagens" %}</h3>
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans "Acompanhe todas as publicações feitas por você." %}</p>
+                </div>
+              </div>
+              <svg
+                class="h-5 w-5 shrink-0 text-[var(--text-secondary)] transition-transform duration-200"
+                data-accordion-icon
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            {% if is_owner %}
+              <a
+                href="{% url 'feed:nova_postagem' %}?tipo_feed=usuario&back=minhas-postagens"
+                class="btn btn-primary w-full sm:w-auto"
+              >
+                {% trans "Nova postagem" %}
+              </a>
+            {% endif %}
+          </div>
+
+          <div
+            id="perfil-posts-panel"
+            class="card-body space-y-6 border-t border-[var(--border)] hidden"
+            data-accordion-panel
+          >
+            {% include "feed/partials/grid.html" with posts=profile_posts back_origin='minhas-postagens' %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if perfil_show_inscricoes_card %}
+        <details class="card group">
+          <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+            <div class="flex items-start gap-3">
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/15">
+                {% lucide 'qr-code' class='h-6 w-6' aria_hidden='true' %}
+              </span>
+              <div class="space-y-1">
+                <p class="text-xl font-semibold">{% trans "Minhas inscrições" %}</p>
+                <p class="text-sm text-[var(--text-secondary)]">{% trans "Acesse seus ingressos e confira o QR Code para o check-in." %}</p>
+              </div>
+            </div>
+            <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+              {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+            </span>
+          </summary>
+          <div class="card-body space-y-4">
+            {% if perfil_minhas_inscricoes %}
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {% for inscricao in perfil_minhas_inscricoes %}
+                  <section class="flex flex-col gap-4 rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-4 shadow-sm">
+                    {% if inscricao.qrcode_url %}
+                      <div class="flex flex-col items-center gap-2">
+                        <img
+                          src="{{ inscricao.qrcode_url }}"
+                          alt="{% trans 'QR Code da inscrição' %}"
+                          class="h-40 w-40 rounded-md border border-[var(--border)] bg-white p-2"
+                          loading="lazy"
+                        />
+                        <p class="text-xs text-[var(--text-secondary)]">{% trans "Apresente este QR Code para realizar o check-in." %}</p>
+                      </div>
+                    {% else %}
+                      <p class="text-sm text-[var(--text-secondary)]">{% trans "QR Code indisponível no momento." %}</p>
+                    {% endif %}
+                    <div class="space-y-4">
+                      <div class="space-y-1">
+                        <h3 class="text-lg font-semibold text-[var(--text-primary)]">{{ inscricao.evento.titulo }}</h3>
+                        <p class="text-sm text-[var(--text-secondary)]">
+                          {{ inscricao.evento.data_inicio|date:'SHORT_DATETIME_FORMAT' }} · {{ inscricao.evento.local }}
+                        </p>
+                      </div>
+                      <div class="rounded-lg border border-[var(--border)] bg-[var(--background-primary)] px-3 py-4">
+                        <dl class="grid grid-cols-1 gap-3 text-sm">
+                          <div class="flex flex-col gap-1">
+                            <dt class="text-[var(--text-secondary)]">{% trans "Valor pago" %}</dt>
+                            <dd class="font-medium text-[var(--text-primary)]">
+                              {% if inscricao.valor_exibicao %}
+                                {{ inscricao.valor_exibicao|localize }}
+                              {% else %}
+                                {% trans "Não informado" %}
+                              {% endif %}
+                            </dd>
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <dt class="text-[var(--text-secondary)]">{% trans "Status" %}</dt>
+                            <dd class="font-medium text-[var(--text-primary)]">{{ inscricao.get_status_display }}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+                  </section>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Você ainda não possui inscrições confirmadas em eventos ativos." %}</p>
+            {% endif %}
+          </div>
+        </details>
+      {% endif %}
+
+      {% if perfil_show_portfolio_card %}
+      <details class="card group">
+        <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+          <div class="flex items-start gap-3">
+            <span
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)] shadow-lg shadow-[var(--color-warning-500)]/20"
+            >
+              {% lucide 'briefcase' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <p class="text-xl font-semibold">{% trans "Portfólio" %}</p>
+              <p class="text-sm text-[var(--text-secondary)]">
+                {% blocktrans with profile_name=profile.display_name %}
+                  Trabalhos e mídias públicos de {{ profile_name }}.
+                {% endblocktrans %}
+              </p>
+            </div>
+          </div>
+          <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+          </span>
+        </summary>
+
+          <div class="card-body">
+            {% if portfolio_medias %}
+
+              <div class="card-grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
+                {% for media in portfolio_medias %}
+                  <article class="card p-0">
+                    <div class="card-body relative space-y-5">
+
+                      <div class="absolute right-4 top-4 z-10 flex gap-2">
+                        <a
+                          href="{{ media.file.url }}"
+                          class="btn btn-secondary btn-sm"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="{% trans 'Visualizar' %}"
+                        >
+                          {% lucide 'eye' class='w-4 h-4' aria_hidden='true' %}
+                        </a>
+                      </div>
+
+                      <header class="space-y-2 pr-16">
+                        <p class="text-sm font-medium text-[var(--text-primary)]">
+                          {{ media.descricao|default:_('Mídia sem descrição') }}
+                        </p>
+                        {% if media.created_at %}
+                          <p class="text-xs text-[var(--text-secondary)]">
+                            {{ media.created_at|date:"SHORT_DATETIME_FORMAT" }}
+                          </p>
+                        {% endif %}
+                      </header>
+
+                      {% if media.media_type == 'pdf' %}
+
+                        <div class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]">
+
+                          <a
+                            href="{{ media.file.url }}"
+                            class="flex items-center justify-between gap-4 p-4 text-sm font-medium text-[var(--text-primary)] transition hover:text-[var(--accent)]"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <span class="flex items-center gap-3">
+                              <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--primary)]">
+                                {% lucide 'file-text' class='h-6 w-6' aria_hidden='true' %}
+                              </span>
+                              <span class="truncate">{% trans "Visualizar PDF" %}</span>
+                            </span>
+                            {% lucide 'external-link' class='h-5 w-5 flex-shrink-0 text-[var(--text-secondary)]' aria_hidden='true' %}
+                          </a>
+                        </div>
+                      {% elif media.media_type == 'image' %}
+                        <a href="{{ media.file.url }}" class="block" target="_blank" rel="noopener noreferrer">
+
+                          <figure class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]">
+
+                            <div class="relative flex max-h-[320px] w-full items-center justify-center overflow-hidden bg-[var(--bg-secondary)]">
+                              <img
+                                src="{{ media.file.url }}"
+                                alt="{{ media.descricao|default:_('Mídia sem descrição') }}"
+                                class="h-auto w-full max-h-[320px] object-contain"
+                                loading="lazy"
+                              />
+                            </div>
+                          </figure>
+                        </a>
+                      {% elif media.media_type == 'video' %}
+
+                        <figure class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-black">
+
+                          <div class="feed-video-wrapper">
+                            <div class="feed-video-frame">
+                              <video src="{{ media.file.url }}" controls class="feed-video-player"></video>
+                            </div>
+                          </div>
+                        </figure>
+                      {% else %}
+
+                        <div class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)] p-4 text-sm text-[var(--text-primary)]">
+
+                      {{ media.file.name|default:_('Arquivo disponível') }}
+                    </div>
+                  {% endif %}
+
+                  {% if media.tags.all %}
+
+                    <footer class="space-y-2">
+
+                      <div class="flex flex-wrap gap-2">
+
+                        {% for tag in media.tags.all %}
+                          <span class="rounded bg-[var(--bg-secondary)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">{{ tag.nome }}</span>
+                        {% endfor %}
+                      </div>
+                    </footer>
+                  {% endif %}
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-sm text-[var(--text-secondary)]">
+            {% trans "Nenhuma mídia pública foi adicionada ao portfólio." %}
+          </p>
+        {% endif %}
+
+    </div>
+  </details>
+
+      {% endif %}
+
+      {% if perfil_show_ratings_card %}
+        <section id="perfil-ratings-accordion" class="card" data-accordion>
+        <div class="card-header flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 text-left sm:flex-1"
+            data-accordion-toggle
+            aria-expanded="false"
+            aria-controls="perfil-ratings-panel"
+          >
+            <div class="flex items-start gap-3">
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)] shadow-lg shadow-[var(--color-warning-500)]/20">
+                {% lucide 'star' class='h-6 w-6' aria_hidden='true' %}
+              </span>
+              <div class="space-y-1">
+                <h3 class="text-xl font-semibold">{% trans "Avaliações" %}</h3>
+                <p class="text-sm text-[var(--text-secondary)]">{% trans "Acompanhe as avaliações recebidas no seu perfil." %}</p>
+              </div>
+            </div>
+            <svg
+              class="h-5 w-5 shrink-0 text-[var(--text-secondary)] transition-transform duration-200"
+              data-accordion-icon
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
+
+        <div
+          id="perfil-ratings-panel"
+          class="card-body space-y-4 border-t border-[var(--border)] hidden"
+          data-accordion-panel
+        >
+          {% include 'perfil/partials/avaliacoes_carousel.html' with page=perfil_avaliacoes_page fetch_url=perfil_avaliacoes_fetch_url empty_message=perfil_avaliacoes_empty_message %}
+        </div>
+        </section>
+      {% endif %}
+
+</div>
+
+<div id="modal" aria-live="polite"></div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script src="{% static 'feed/js/feed.js' %}"></script>
+  <script type="module" src="{% static 'accounts/js/perfil.js' %}"></script>
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+  <script src="{% static 'accounts/js/perfil-page.js' %}" defer></script>
+{% endblock %}
+

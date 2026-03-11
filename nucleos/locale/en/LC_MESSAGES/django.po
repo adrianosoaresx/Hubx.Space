@@ -1,0 +1,191 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-08-14 12:47-0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: templates/nucleos/nucleo_form.html:4
+msgid "Novo Núcleo"
+msgstr ""
+
+#: templates/nucleos/partials/membro.html:15 templates/nucleos/partials/membro_card.html:33
+msgid "Coordenador"
+msgstr ""
+
+#: templates/nucleos/partials/membro_card.html:33
+msgid "Membro"
+msgstr ""
+
+#: templates/nucleos/nucleo_form.html:12 templates/nucleos/delete.html:16
+#: templates/nucleos/delete.html:17
+msgid "Cancelar"
+msgstr ""
+
+#: templates/nucleos/nucleo_form.html:13
+msgid "Salvar"
+msgstr ""
+
+#: templates/nucleos/delete.html:4
+msgid "Remover Núcleo"
+msgstr ""
+
+#: templates/nucleos/delete.html:9
+msgid "Confirmar remoção"
+msgstr ""
+
+#: templates/nucleos/delete.html:11
+#, python-format
+msgid "Deseja realmente remover o núcleo <strong>%(object.nome)s</strong>?"
+msgstr ""
+
+#: templates/nucleos/delete.html:19 templates/nucleos/delete.html:20
+#: templates/nucleos/detail.html:31 templates/nucleos/detail.html:81
+msgid "Remover"
+msgstr ""
+
+#: templates/nucleos/detail.html:19 templates/nucleos/nucleo_list.html:27
+msgid "Membros"
+msgstr ""
+
+#: templates/nucleos/detail.html:24
+msgid "Suspenso"
+msgstr ""
+
+#: templates/nucleos/detail.html:28
+msgid "Rebaixar"
+msgstr ""
+
+#: templates/nucleos/detail.html:28
+msgid "Promover"
+msgstr ""
+
+#: templates/nucleos/detail.html:35 templates/nucleos/detail.html:110
+msgid "Reativar"
+msgstr ""
+
+#: templates/nucleos/detail.html:39
+msgid "Suspender"
+msgstr ""
+
+#: templates/nucleos/detail.html:45
+msgid "Sem membros."
+msgstr ""
+
+#: templates/nucleos/detail.html:50
+msgid "Pendentes"
+msgstr ""
+
+#: templates/nucleos/detail.html:53
+msgid "Usuário"
+msgstr ""
+
+#: templates/nucleos/detail.html:53
+msgid "Solicitado em"
+msgstr ""
+
+#: templates/nucleos/detail.html:61
+msgid "Confirmar aprovação?"
+msgstr ""
+
+#: templates/nucleos/detail.html:61
+msgid "Aprovar"
+msgstr ""
+
+#: templates/nucleos/detail.html:62
+msgid "Confirmar recusa?"
+msgstr ""
+
+#: templates/nucleos/detail.html:62
+msgid "Recusar"
+msgstr ""
+
+#: templates/nucleos/detail.html:71
+msgid "Suplentes"
+msgstr ""
+
+#: templates/nucleos/detail.html:77
+msgid "Ativo"
+msgstr ""
+
+#: templates/nucleos/detail.html:77
+msgid "Inativo"
+msgstr ""
+
+#: templates/nucleos/detail.html:97
+msgid "Gerenciar convites"
+msgstr ""
+
+#: templates/nucleos/detail.html:105
+msgid "Exportar CSV"
+msgstr ""
+
+#: templates/nucleos/detail.html:106
+msgid "Exportar XLS"
+msgstr ""
+
+#: templates/nucleos/detail.html:110
+msgid "Inativar"
+msgstr ""
+
+#: templates/nucleos/detail.html:117
+msgid "Solicitar participação"
+msgstr ""
+
+#: templates/nucleos/detail.html:122
+msgid "Postar no feed"
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:4
+msgid "Núcleos"
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:9
+msgid "Buscar..."
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:10
+msgid "Buscar"
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:14
+msgid "Novo"
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:29
+msgid "Detalhes"
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:32
+msgid "Excluir"
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:38
+msgid "Nenhum núcleo encontrado."
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:44
+msgid "Anterior"
+msgstr ""
+
+#: templates/nucleos/nucleo_list.html:48
+msgid "Próxima"
+msgstr ""
+
+#: templates/nucleos/componentes/card_nucleo.html:17
+msgid "Formação"
+msgstr "Formation"
+
+ 

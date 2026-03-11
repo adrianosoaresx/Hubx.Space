@@ -1,0 +1,373 @@
+{% load i18n static lucide_icons %}
+
+<div
+  class="space-y-2"
+  data-payment-method-cards
+  data-payment-field-name="{{ field.html_name }}"
+>
+  <p class="text-sm font-medium text-[var(--text-primary)]" id="{{ field.auto_id|default:field.html_name }}_legend">
+    {{ field.label }}{% if field.field.required %} *{% endif %}
+  </p>
+  <div
+    class="grid gap-3 sm:grid-cols-3"
+    role="radiogroup"
+    aria-labelledby="{{ field.auto_id|default:field.html_name }}_legend"
+    {% if field.field.required %}aria-required="true"{% endif %}
+  >
+    {% with selected=field.value base_id=field.auto_id|default:field.html_name disabled=field.field.disabled %}
+      <label
+        class="block h-full {% if disabled %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %}"
+        for="{{ base_id }}_pix"
+        data-payment-card
+        data-payment-card-value="pix"
+      >
+        <input
+          type="radio"
+          name="{{ field.html_name }}"
+          value="pix"
+          class="sr-only peer"
+          id="{{ base_id }}_pix"
+          {% if selected == "pix" %}checked{% endif %}
+          {% if disabled %}disabled{% endif %}
+          {% if field.errors %}aria-invalid="true"{% endif %}
+          {% if field.field.required and not disabled %}required{% endif %}
+        />
+        <div
+          class="relative flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-primary)] p-4 text-left transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary-500 shadow-sm peer-checked:border-primary-500 peer-checked:bg-primary-500/10 peer-checked:ring-2 peer-checked:ring-primary-500/60 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500{% if disabled %} cursor-not-allowed{% else %} hover:border-primary-400{% endif %}"
+          data-payment-card-body
+        >
+          <span
+            class="pointer-events-none absolute right-3 top-3 hidden items-center justify-center rounded-full bg-primary-500 p-1 text-white peer-checked:flex"
+            aria-hidden="true"
+          >
+            {% lucide 'check' class='h-3.5 w-3.5' aria_hidden='true' %}
+          </span>
+          <div class="flex items-center gap-2 text-[var(--text-primary)]">
+            {% lucide 'qr-code' class='w-5 h-5 text-primary-500' aria_hidden='true' %}
+            <span class="text-base font-semibold">{% trans "Pix" %}</span>
+          </div>
+          <p class="mt-2 text-sm text-[var(--text-secondary)]">
+            {% trans "Pague instantaneamente via Pix." %}
+          </p>
+          <div
+            class="mt-3 hidden border-t border-dashed border-[var(--border)] pt-3"
+            data-payment-card-accordion
+            data-payment-accordion-value="pix"
+            data-pix-section
+            data-pix-key="{{ evento.organizacao.chave_pix|default:''|escapejs }}"
+            data-pix-amount="{{ valor_evento_usuario|default_if_none:0 }}"
+            data-pix-event-title="{{ evento.titulo|default:''|escapejs }}"
+            data-copy-success-text="{% trans 'Chave Pix copiada para a área de transferência.' %}"
+            data-copy-error-text="{% trans 'Não foi possível copiar a chave Pix. Tente novamente.' %}"
+            data-copy-missing-text="{% trans 'Nenhuma chave Pix disponível no momento.' %}"
+            data-qr-error-text="{% trans 'Não foi possível gerar o QR Code Pix.' %}"
+          >
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% trans "Escolha uma opção para finalizar o pagamento via Pix." %}
+            </p>
+            <div
+              class="mt-3 grid items-start gap-2 sm:grid-cols-2"
+              role="group"
+              aria-label="{% trans 'Opções de pagamento via Pix' %}"
+            >
+              <div
+                class="flex w-full flex-col rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] p-3 text-left transition hover:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-2"
+              >
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between gap-2 text-left text-[var(--text-primary)] transition hover:text-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  data-pix-key-button
+                  aria-expanded="false"
+                  aria-controls="{{ base_id }}_pix_key_panel"
+                >
+                  <span class="flex items-center gap-2">
+                    {% lucide 'copy' class='w-4 h-4 text-primary-500' aria_hidden='true' %}
+                    <span class="text-sm font-semibold">{% trans "Copiar chave Pix" %}</span>
+                  </span>
+                  {% lucide 'chevron-down' class='w-4 h-4 text-[var(--text-secondary)] transition data-[state=open]:rotate-180' aria_hidden='true' data_state_indicator='true' data_state='closed' %}
+                </button>
+                <p class="mt-2 text-xs text-[var(--text-secondary)]">
+                  {% if evento.organizacao.chave_pix %}
+                    {% blocktrans trimmed %}Copie a chave Pix da organização para pagar no seu banco.{% endblocktrans %}
+                  {% else %}
+                    {% trans "Nenhuma chave Pix cadastrada pela organização." %}
+                  {% endif %}
+                </p>
+                <div
+                  id="{{ base_id }}_pix_key_panel"
+                  class="mt-3 hidden rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-primary)] p-3"
+                  data-pix-key-panel
+                  aria-hidden="true"
+                >
+                  <div class="space-y-3">
+                    <div>
+                      <p class="text-xs font-medium text-[var(--text-secondary)]">{% trans "Chave Pix" %}</p>
+                      <p
+                        class="mt-1 break-all font-mono text-sm text-[var(--text-primary)]"
+                        data-pix-key-display
+                      >
+                        {% if evento.organizacao.chave_pix %}
+                          {{ evento.organizacao.chave_pix }}
+                        {% else %}
+                          {% trans "Nenhuma chave Pix cadastrada pela organização." %}
+                        {% endif %}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-2 rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-medium text-[var(--text-inverse)] transition hover:bg-[var(--primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                      data-pix-copy-button
+                      {% if not evento.organizacao.chave_pix %}disabled{% endif %}
+                    >
+                      {% lucide 'copy' class='w-4 h-4' aria_hidden='true' %}
+                      <span>{% trans "Copiar chave" %}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="flex w-full flex-col rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] p-3 text-left transition hover:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-2"
+                data-pix-qrcode-card
+              >
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between gap-2 text-left text-[var(--text-primary)] transition hover:text-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  data-pix-qrcode-button
+                  aria-expanded="false"
+                  aria-controls="{{ base_id }}_pix_qrcode_panel"
+                >
+                  <span class="flex items-center gap-2">
+                    {% lucide 'qr-code' class='w-4 h-4 text-primary-500' aria_hidden='true' %}
+                    <span class="text-sm font-semibold">{% trans "Exibir QR Code" %}</span>
+                  </span>
+                  {% lucide 'chevron-down' class='w-4 h-4 text-[var(--text-secondary)] transition data-[state=open]:rotate-180' aria_hidden='true' data_state_indicator='true' data_state='closed' %}
+                </button>
+                <p class="mt-2 text-xs text-[var(--text-secondary)]">
+                  {% blocktrans trimmed %}Visualize um QR Code com o valor do evento para pagamento imediato.{% endblocktrans %}
+                </p>
+                <div
+                  id="{{ base_id }}_pix_qrcode_panel"
+                  class="mt-3 hidden rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-primary)] p-3"
+                  data-pix-qrcode-panel
+                  aria-hidden="true"
+                >
+                  <p class="text-xs text-[var(--text-secondary)]">
+                    {% trans "Use o aplicativo do seu banco para escanear o código." %}
+                  </p>
+                  <div class="mt-3 flex justify-center">
+                    <div
+                      class="rounded-lg bg-white p-3"
+                      data-pix-qr-container
+                      aria-live="polite"
+                      aria-busy="false"
+                    ></div>
+                  </div>
+                  <dl class="mt-4 space-y-2 text-xs text-[var(--text-secondary)]">
+                    <div class="flex justify-between gap-4">
+                      <dt class="font-medium text-[var(--text-primary)]">{% trans "Valor" %}</dt>
+                      <dd data-pix-qrcode-amount class="text-right text-[var(--text-primary)]"></dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                      <dt class="font-medium text-[var(--text-primary)]">{% trans "Chave" %}</dt>
+                      <dd data-pix-qrcode-key class="text-right break-all text-[var(--text-primary)]"></dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+            <p
+              class="mt-2 hidden text-xs font-medium text-primary-600"
+              data-pix-feedback
+              role="status"
+            ></p>
+          </div>
+        </div>
+      </label>
+
+      <div class="sm:col-span-3" data-faturar-wrapper>
+        <div
+          class="relative flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-primary)] p-4 text-left transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary-500 shadow-sm{% if disabled %} cursor-not-allowed opacity-60{% else %} hover:border-primary-400{% endif %}"
+          data-faturar-container
+        >
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-2 text-left text-[var(--text-primary)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+            data-faturar-toggle
+            aria-expanded="false"
+            aria-controls="{{ base_id }}_faturar_panel"
+            {% if disabled %}disabled{% endif %}
+          >
+            <span class="flex items-center gap-2">
+              {% lucide 'file-text' class='w-5 h-5 text-primary-500' aria_hidden='true' %}
+              <span class="text-base font-semibold">{% trans "Faturar" %}</span>
+            </span>
+            {% lucide 'chevron-down' class='w-5 h-5 text-[var(--text-secondary)] transition data-[state=open]:rotate-180' aria_hidden='true' data_state_indicator='true' data_state='closed' %}
+          </button>
+          <p class="mt-2 text-sm text-[var(--text-secondary)]">
+            {% trans "Escolha a modalidade de faturamento disponível." %}
+          </p>
+          <div
+            id="{{ base_id }}_faturar_panel"
+            class="mt-3 hidden border-t border-dashed border-[var(--border)] pt-3"
+            data-faturar-panel
+            aria-hidden="true"
+          >
+            <div class="grid gap-4 md:grid-cols-3">
+              <label
+                class="block h-full {% if disabled %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %}"
+                for="{{ base_id }}_faturar_avista"
+                data-payment-card
+                data-payment-card-value="faturar_avista"
+              >
+                <input
+                  type="radio"
+                  name="{{ field.html_name }}"
+                  value="faturar_avista"
+                  class="sr-only peer"
+                  id="{{ base_id }}_faturar_avista"
+                  {% if selected == "faturar_avista" %}checked{% endif %}
+                  {% if disabled %}disabled{% endif %}
+                  {% if field.errors %}aria-invalid="true"{% endif %}
+                  {% if field.field.required and not disabled %}required{% endif %}
+                />
+                <div
+                  class="relative flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-primary)] p-4 text-left transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary-500 shadow-sm peer-checked:border-primary-500 peer-checked:bg-primary-500/10 peer-checked:ring-2 peer-checked:ring-primary-500/60 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500{% if disabled %} cursor-not-allowed{% else %} hover:border-primary-400{% endif %}"
+                  data-payment-card-body
+                >
+                  <span
+                    class="pointer-events-none absolute right-3 top-3 hidden items-center justify-center rounded-full bg-primary-500 p-1 text-white peer-checked:flex"
+                    aria-hidden="true"
+                  >
+                    {% lucide 'check' class='h-3.5 w-3.5' aria_hidden='true' %}
+                  </span>
+                  <div class="flex items-center gap-2 text-[var(--text-primary)]">
+                    {% lucide 'file-text' class='w-5 h-5 text-primary-500' aria_hidden='true' %}
+                    <span class="text-base font-semibold">{% trans "Faturar à vista" %}</span>
+                  </div>
+                  <p class="mt-2 text-sm text-[var(--text-secondary)]">
+                    {% trans "Pague o valor integral na próxima fatura." %}
+                  </p>
+                  <div
+                    class="mt-3 hidden border-t border-dashed border-[var(--border)] pt-3"
+                    data-payment-card-accordion
+                    data-payment-accordion-value="faturar_avista"
+                  >
+                    <p class="text-sm text-[var(--text-secondary)]">
+                      {% blocktrans trimmed %}O valor será incluído integralmente na próxima fatura conforme acordo com a organização.{% endblocktrans %}
+                    </p>
+                  </div>
+                </div>
+              </label>
+
+              <label
+                class="block h-full {% if disabled %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %}"
+                for="{{ base_id }}_faturar_2x"
+                data-payment-card
+                data-payment-card-value="faturar_2x"
+              >
+                <input
+                  type="radio"
+                  name="{{ field.html_name }}"
+                  value="faturar_2x"
+                  class="sr-only peer"
+                  id="{{ base_id }}_faturar_2x"
+                  {% if selected == "faturar_2x" %}checked{% endif %}
+                  {% if disabled %}disabled{% endif %}
+                  {% if field.errors %}aria-invalid="true"{% endif %}
+                  {% if field.field.required and not disabled %}required{% endif %}
+                />
+                <div
+                  class="relative flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-primary)] p-4 text-left transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary-500 shadow-sm peer-checked:border-primary-500 peer-checked:bg-primary-500/10 peer-checked:ring-2 peer-checked:ring-primary-500/60 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500{% if disabled %} cursor-not-allowed{% else %} hover:border-primary-400{% endif %}"
+                  data-payment-card-body
+                >
+                  <span
+                    class="pointer-events-none absolute right-3 top-3 hidden items-center justify-center rounded-full bg-primary-500 p-1 text-white peer-checked:flex"
+                    aria-hidden="true"
+                  >
+                    {% lucide 'check' class='h-3.5 w-3.5' aria_hidden='true' %}
+                  </span>
+                  <div class="flex items-center gap-2 text-[var(--text-primary)]">
+                    {% lucide 'file-text' class='w-5 h-5 text-primary-500' aria_hidden='true' %}
+                    <span class="text-base font-semibold">{% trans "Faturar em 2x" %}</span>
+                  </div>
+                  <p class="mt-2 text-sm text-[var(--text-secondary)]">
+                    {% trans "Divida o valor em duas faturas consecutivas." %}
+                  </p>
+                  <div
+                    class="mt-3 hidden border-t border-dashed border-[var(--border)] pt-3"
+                    data-payment-card-accordion
+                    data-payment-accordion-value="faturar_2x"
+                  >
+                    <p class="text-sm text-[var(--text-secondary)]">
+                      {% blocktrans trimmed %}O valor será faturado em duas parcelas conforme acordo com a organização.{% endblocktrans %}
+                    </p>
+                  </div>
+                </div>
+              </label>
+
+              <label
+                class="block h-full {% if disabled %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %}"
+                for="{{ base_id }}_faturar_3x"
+                data-payment-card
+                data-payment-card-value="faturar_3x"
+              >
+                <input
+                  type="radio"
+                  name="{{ field.html_name }}"
+                  value="faturar_3x"
+                  class="sr-only peer"
+                  id="{{ base_id }}_faturar_3x"
+                  {% if selected == "faturar_3x" %}checked{% endif %}
+                  {% if disabled %}disabled{% endif %}
+                  {% if field.errors %}aria-invalid="true"{% endif %}
+                  {% if field.field.required and not disabled %}required{% endif %}
+                />
+                <div
+                  class="relative flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-primary)] p-4 text-left transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary-500 shadow-sm peer-checked:border-primary-500 peer-checked:bg-primary-500/10 peer-checked:ring-2 peer-checked:ring-primary-500/60 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500{% if disabled %} cursor-not-allowed{% else %} hover:border-primary-400{% endif %}"
+                  data-payment-card-body
+                >
+                  <span
+                    class="pointer-events-none absolute right-3 top-3 hidden items-center justify-center rounded-full bg-primary-500 p-1 text-white peer-checked:flex"
+                    aria-hidden="true"
+                  >
+                    {% lucide 'check' class='h-3.5 w-3.5' aria_hidden='true' %}
+                  </span>
+                  <div class="flex items-center gap-2 text-[var(--text-primary)]">
+                    {% lucide 'file-text' class='w-5 h-5 text-primary-500' aria_hidden='true' %}
+                    <span class="text-base font-semibold">{% trans "Faturar em 3x" %}</span>
+                  </div>
+                  <p class="mt-2 text-sm text-[var(--text-secondary)]">
+                    {% trans "Divida o valor em três faturas consecutivas." %}
+                  </p>
+                  <div
+                    class="mt-3 hidden border-t border-dashed border-[var(--border)] pt-3"
+                    data-payment-card-accordion
+                    data-payment-accordion-value="faturar_3x"
+                  >
+                    <p class="text-sm text-[var(--text-secondary)]">
+                      {% blocktrans trimmed %}O valor será faturado em três parcelas conforme acordo com a organização.{% endblocktrans %}
+                    </p>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endwith %}
+  </div>
+
+  {% if field.errors %}
+    <ul class="errorlist">
+      {% for error in field.errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if field.help_text %}
+    <p class="text-xs text-[var(--text-secondary)]">{{ field.help_text }}</p>
+  {% endif %}
+</div>
+
+<script src="{% static 'eventos/js/metodo-pagamento-cards.js' %}" defer></script>

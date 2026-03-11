@@ -1,0 +1,12 @@
+{% load i18n %}
+<div class="grid gap-4" role="list">
+  {% for destinatario in sent_requests %}
+    {% include 'conexoes/partials/conexao_card.html' with usuario=destinatario section='enviadas' %}
+  {% empty %}
+    <article class="card" role="listitem">
+      <div class="card-body space-y-4 text-sm text-[var(--text-secondary)]">
+        <p>{% trans "Você não enviou solicitações de conexão recentemente." %}</p>
+      </div>
+    </article>
+  {% endfor %}
+</div>

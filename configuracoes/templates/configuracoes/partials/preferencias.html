@@ -1,0 +1,150 @@
+{% load widget_tweaks i18n static %}
+{% get_current_language as LANGUAGE_CODE %}
+
+{% with target_id=hx_target_id|default:'settings-content' %}
+<!-- HTMX fragment: formulário de preferências renderizado dentro do card principal -->
+<form method="post" hx-post="{{ request.path }}" hx-target="#{{ target_id }}" class="space-y-6">
+  {% csrf_token %}
+  {% if preferencias_form.non_field_errors %}
+    <div class="alert alert-error" role="alert">
+      <ul class="space-y-1">
+        {% for err in preferencias_form.non_field_errors %}
+          <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+  <input type="hidden" name="section" value="preferencias">
+  <input type="hidden" name="escopo_tipo" id="escopo_tipo">
+  <input type="hidden" name="escopo_id" id="escopo_id">
+  <input type="hidden" name="chk_email_id" id="chk_email_id" value="{{ preferencias_form.receber_notificacoes_email.auto_id }}">
+  <input type="hidden" name="chk_whats_id" id="chk_whats_id" value="{{ preferencias_form.receber_notificacoes_whatsapp.auto_id }}">
+  <input type="hidden" name="chk_push_id" id="chk_push_id" value="{{ preferencias_form.receber_notificacoes_push.auto_id }}">
+  <input type="hidden" name="sel_email_id" id="sel_email_id" value="{{ preferencias_form.frequencia_notificacoes_email.auto_id }}">
+  <input type="hidden" name="sel_whats_id" id="sel_whats_id" value="{{ preferencias_form.frequencia_notificacoes_whatsapp.auto_id }}">
+  <input type="hidden" name="sel_push_id" id="sel_push_id" value="{{ preferencias_form.frequencia_notificacoes_push.auto_id }}">
+  <input type="hidden" name="tema_atual" id="tema_atual" value="{{ preferencias_form.instance.tema }}">
+  <input type="hidden" name="idioma_atual" id="idioma_atual" value="{{ preferencias_form.instance.idioma }}">
+  <input type="hidden" name="updated_preferences" id="updated_preferences" value="{{ updated_preferences|yesno:'true,false' }}">
+  <fieldset class="space-y-6">
+    <legend class="sr-only">{% trans 'Notificações' %}</legend>
+    <div class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% with email_checked=preferencias_form.receber_notificacoes_email.value|yesno:"true,false" %}
+          {% with email_attr='aria-checked:'|add:email_checked %}
+          {% with preferencias_form.receber_notificacoes_email|attr:'role:switch'|attr:'tabindex:0'|attr:'aria-label:Receber notificações por e-mail'|attr:email_attr as email_field %}
+              {% include '_forms/field.html' with field=email_field %}
+            {% endwith %}
+          {% endwith %}
+        {% endwith %}
+        {% with preferencias_form.frequencia_notificacoes_email|add_class:'hidden' as freq_email_field %}
+        {% include '_forms/field.html' with field=freq_email_field %}
+        {% endwith %}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          hx-post="{% url 'configuracoes_api:configuracoes-testar' %}"
+          hx-vals='{"canal": "email"}'
+          hx-include="[name=csrfmiddlewaretoken],#escopo_tipo,#escopo_id"
+          hx-swap="none"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+        >
+          {% trans 'Testar e-mail' %}
+        </button>
+        <span id="msg-email" class="text-xs text-[var(--text-tertiary)]" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% with whats_checked=preferencias_form.receber_notificacoes_whatsapp.value|yesno:"true,false" %}
+          {% with whats_attr='aria-checked:'|add:whats_checked %}
+          {% with preferencias_form.receber_notificacoes_whatsapp|attr:'role:switch'|attr:'tabindex:0'|attr:'aria-label:Receber notificações por WhatsApp'|attr:whats_attr as whats_field %}
+              {% include '_forms/field.html' with field=whats_field %}
+            {% endwith %}
+          {% endwith %}
+        {% endwith %}
+        {% with preferencias_form.frequencia_notificacoes_whatsapp|add_class:'hidden' as freq_whats_field %}
+        {% include '_forms/field.html' with field=freq_whats_field %}
+        {% endwith %}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          hx-post="{% url 'configuracoes_api:configuracoes-testar' %}"
+          hx-vals='{"canal": "whatsapp"}'
+          hx-include="[name=csrfmiddlewaretoken],#escopo_tipo,#escopo_id"
+          hx-swap="none"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+        >
+          {% trans 'Testar WhatsApp' %}
+        </button>
+        <span id="msg-whatsapp" class="text-xs text-[var(--text-tertiary)]" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% with push_checked=preferencias_form.receber_notificacoes_push.value|yesno:"true,false" %}
+          {% with push_attr='aria-checked:'|add:push_checked %}
+          {% with preferencias_form.receber_notificacoes_push|attr:'role:switch'|attr:'tabindex:0'|attr:'aria-label:Receber notificações push'|attr:push_attr as push_field %}
+              {% include '_forms/field.html' with field=push_field %}
+            {% endwith %}
+          {% endwith %}
+        {% endwith %}
+        {% with preferencias_form.frequencia_notificacoes_push|add_class:'hidden' as freq_push_field %}
+        {% include '_forms/field.html' with field=freq_push_field %}
+        {% endwith %}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          hx-post="{% url 'configuracoes_api:configuracoes-testar' %}"
+          hx-vals='{"canal": "push"}'
+          hx-include="[name=csrfmiddlewaretoken],#escopo_tipo,#escopo_id"
+          hx-swap="none"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+        >
+          {% trans 'Testar push' %}
+        </button>
+        <span id="msg-push" class="text-xs text-[var(--text-tertiary)]" aria-live="polite"></span>
+      </div>
+    </div>
+    <div id="campo-hora-diaria" class="hidden">
+        {% with preferencias_form.hora_notificacao_diaria|attr:'type:time' as hora_diaria_field %}
+        {% include '_forms/field.html' with field=hora_diaria_field %}
+      {% endwith %}
+    </div>
+    <div id="campo-hora-semanal" class="hidden">
+        {% with preferencias_form.hora_notificacao_semanal|attr:'type:time' as hora_semanal_field %}
+        {% include '_forms/field.html' with field=hora_semanal_field %}
+      {% endwith %}
+    </div>
+    <div id="campo-dia-semanal" class="hidden">
+        {% with preferencias_form.dia_semana_notificacao as dia_field %}
+        {% include '_forms/field.html' with field=dia_field %}
+      {% endwith %}
+    </div>
+  </fieldset>
+  <div class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        {% with preferencias_form.idioma|attr:'tabindex:0' as idioma_field %}
+        {% include '_forms/field.html' with field=idioma_field %}
+        {% endwith %}
+        <p class="text-xs text-[var(--text-muted)]">{% blocktrans %}Idioma atual: {{ LANGUAGE_CODE }}{% endblocktrans %}</p>
+      </div>
+      <div>
+        {% with preferencias_form.tema|attr:'tabindex:0' as tema_field %}
+        {% include '_forms/field.html' with field=tema_field %}
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+  <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+    <button type="submit" aria-label="{% trans 'Salvar Alterações' %}" class="btn btn-primary">{% trans 'Salvar Alterações' %}</button>
+  </div>
+</form>
+{% endwith %}

@@ -1,0 +1,142 @@
+###############################################################################
+# .gitignore — Projeto Hubx                                                   #
+# Stack: Django 5 + Python 3.12 • Next.js/Tailwind CSS 3 • HTMX • SQLite      #
+# Organizado por blocos para fácil manutenção                                 #
+###############################################################################
+
+##############################
+# Arquivos de sistema / OS   #
+##############################
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+Desktop.ini
+
+##############################
+# Logs e relatórios          #
+##############################
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+##############################
+# Ambiente Python            #
+##############################
+# Byte‑code / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+.venv*/
+venv*/
+env*/
+ENV*/
+
+# Build / distribuição Python
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+share/python-wheels/
+pip-log.txt
+pip-delete-this-directory.txt
+*.spec
+MANIFEST
+
+##############################
+# Projeto Django             #
+##############################
+# Banco de dados local
+*.sqlite3
+db.sqlite3
+
+# Variáveis de ambiente / segredos
+.env
+.env.*
+!.env.example
+
+# Arquivos gerados pelo collectstatic
+/staticfiles/
+/static_root/
+
+# Celery Beat (arquivos de agenda gerados automaticamente; não versionar)
+celerybeat-schedule.dat
+celerybeat-schedule.dir
+
+# Arquivos enviados pelo usuário (mídia local somente em dev)
+media/
+uploads/
+
+##############################
+# Testes, cobertura, linters #
+##############################
+.coverage
+coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+##############################
+# Node / Next.js / Tailwind  #
+##############################
+# Dependências Node devem ser reinstaladas durante builds
+node_modules/
+.cache/                   # Vite/Tailwind JIT ou PostCSS
+.parcel-cache/
+.postcss-cache/
+.pnpm-store/
+# Builds
+.next/
+out/
+build/
+public/build/
+public/dist/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+##############################
+# IDE / Editor               #
+##############################
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+##############################
+# Docker / PID files         #
+##############################
+*.pid
+
+##############################
+# Arquivos temporários       #
+##############################
+*.bak
+*.tmp
+*.temp
+*.swp
+*.orig
+*~
+
+# Ignorar arquivos binários de tradução
+*.mo
+
+# Impedir que o Codex inclua arquivos binários gerados automaticamente
+# (para evitar erro "Não são suportados ficheiros binários")
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.woff2

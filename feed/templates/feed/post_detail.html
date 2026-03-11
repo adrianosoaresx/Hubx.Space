@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% load static i18n lucide_icons widget_tweaks %}
+{% block title %}{% trans "Postagem" %} | Hubx{% endblock %}
+
+{% block hero %}
+  {% include 'feed/componentes/hero_feed.html' with title=_('Postagem') %}
+{% endblock %}
+
+{% block content %}
+{% if request.user.user_type == 'root' %}
+  <p class="text-center text-[var(--text-muted)]">{% trans "Usuário root não tem acesso ao feed." %}</p>
+{% else %}
+  <article class="card" data-post-detail-root
+           data-csrf-token="{{ csrf_token }}"
+           data-open-view-url="/api/feed/posts/{{ post.id }}/views/open/"
+           data-close-view-url="/api/feed/posts/{{ post.id }}/views/close/">
+    <div class="card-body space-y-6">
+    <div class="flex items-center gap-4">
+      {% if post.autor.avatar %}
+        <img src="{{ post.autor.avatar.url }}" alt="{{ post.autor.display_name|default:post.autor.username }}" class="w-10 h-10 rounded-full object-cover" loading="lazy">
+      {% else %}
+        <div class="w-10 h-10 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-secondary)] font-bold" role="img" aria-label="{{ post.autor.display_name|default:post.autor.username }}">
+          {{ post.autor.username|first|upper }}
+        </div>
+      {% endif %}
+      <div>
+        <p class="text-sm font-medium text-[var(--text-primary)]">{{ post.autor.display_name }}</p>
+        <p class="text-xs text-[var(--text-muted)]">{{ post.created_at|date:"SHORT_DATETIME_FORMAT" }}</p>
+      </div>
+    </div>
+
+    <div class="text-sm text-[var(--text-primary)] whitespace-pre-line" id="post-content-detail-{{ post.id }}" data-post-content>
+      {{ post.conteudo }}
+    </div>
+
+    {% with preview=post.link_preview %}
+      <div class="space-y-2 {% if not preview %}hidden{% endif %}" data-link-preview data-link-preview-source="#post-content-detail-{{ post.id }}"
+           data-loading-text="{% trans 'Carregando pré-visualização do link…' %}"
+           data-error-text="{% trans 'Não foi possível carregar os dados do link.' %}">
+        <p class="text-xs text-[var(--text-secondary)]" data-link-preview-status></p>
+        <a data-link-preview-card
+           data-link-preview-url
+           target="_blank"
+           rel="noopener"
+           href="{{ preview.url|default:'#' }}"
+           class="flex gap-4 rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-tertiary)] p-3 {% if not preview %}hidden{% endif %}">
+          <div class="h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--bg-secondary)] {% if not preview.image %}hidden{% endif %}" data-link-preview-image-wrapper>
+            <img data-link-preview-image alt="{% trans 'Imagem de pré-visualização do link' %}" class="h-full w-full object-cover" loading="lazy"{% if preview.image %} src="{{ preview.image }}"{% endif %}>
+          </div>
+          <div class="flex-1 space-y-1 min-w-0">
+            <span data-link-preview-title class="block truncate text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--accent)]">
+              {% if preview %}{{ preview.title|default:preview.url }}{% endif %}
+            </span>
+            <p data-link-preview-description class="text-xs text-[var(--text-secondary)] overflow-hidden"
+               style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">{% if preview.description %}{{ preview.description }}{% endif %}</p>
+            <p data-link-preview-host class="text-[10px] text-[var(--text-muted)] truncate">{% if preview.site_name %}{{ preview.site_name }}{% endif %}</p>
+          </div>
+        </a>
+      </div>
+    {% endwith %}
+
+    {% if post.pdf %}
+      <div class="relative mt-2">
+      <a href="{{ post.pdf.url }}" target="_blank" class="link link-hover">{% trans "Visualizar PDF" %}</a>
+      </div>
+    {% elif post.image %}
+      <div class="mt-2">
+        <img src="{{ post.image.url }}" alt="{% trans 'Imagem' %}" class="rounded-xl max-w-full object-cover" loading="lazy">
+      </div>
+    {% elif post.video %}
+      <div class="mt-2">
+        {% if post.video_preview %}
+          <video src="{{ post.video.url }}" poster="{{ post.video_preview.url }}" controls class="rounded-xl max-w-full"></video>
+        {% else %}
+          <video src="{{ post.video.url }}" controls class="rounded-xl max-w-full"></video>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if post.tags.all %}
+      <div class="flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
+        {% for tag in post.tags.all %}
+          <span class="px-2 py-1 bg-[var(--bg-tertiary)] rounded">{{ tag.nome }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+
+    <div class="mt-4 flex items-center gap-4 text-sm text-[var(--text-secondary)]">
+      <div id="like-btn-{{ post.id }}">
+        {% include 'feed/componentes/like_button.html' with post=post %}
+      </div>
+      <button type="button" data-post-id="{{ post.id }}" class="share-btn btn btn-secondary {% if post.is_shared %}text-[var(--primary)]{% endif %}" aria-label="{% trans 'Compartilhar' %}">
+        {% lucide 'share-2' class='w-4 h-4' %}
+        <span class="share-count">{{ post.share_count }}</span>
+      </button>
+      <button type="button" data-post-id="{{ post.id }}" class="bookmark-btn btn btn-secondary {% if post.is_bookmarked %}text-[var(--warning)]{% endif %}" aria-label="{% trans 'Salvar' %}">
+        {% lucide 'bookmark' class='w-4 h-4' %}
+      </button>
+      <button type="button" data-post-id="{{ post.id }}" class="flag-btn btn btn-secondary {% if post.is_flagged %}text-[var(--error)] cursor-not-allowed{% endif %}" aria-label="{% trans 'Denunciar' %}" {% if post.is_flagged %}disabled{% endif %}>
+        {% lucide 'flag' class='w-4 h-4' %}
+      </button>
+
+    </div>
+
+  <!-- Moderação desativada -->
+
+    <div class="space-y-4">
+      <h3 class="text-lg font-medium">{% trans "Comentários" %}</h3>
+      <form id="comment-form" method="post" action="/api/feed/comments/" hx-post="/api/feed/comments/" hx-target="#comments" hx-swap="afterbegin" class="space-y-6" hx-on:afterRequest="this.reset(); setReplyTo(null)">
+        {% csrf_token %}
+        {{ comment_form.post }}
+        {{ comment_form.reply_to }}
+        {% include '_forms/field.html' with field=comment_form.texto|attr:'rows:3' %}
+        <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+          <button type="submit" class="btn btn-primary" aria-label="{% trans 'Enviar comentário' %}">{% trans "Enviar" %}</button>
+        </div>
+      </form>
+
+      <ul id="comments" class="space-y-4">
+        {% for comment in post.comments.all %}
+          {% include 'feed/partials/comment.html' with comment=comment %}
+        {% endfor %}
+      </ul>
+    </div>
+
+    {% if post.autor == user or user_can_moderate %}
+    <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+      <a
+        href="{% url 'feed:listar' %}#post-{{ post.pk }}"
+        class="btn btn-outline"
+        aria-label="{% trans 'Cancelar e voltar para o feed' %}"
+      >{% trans "Cancelar" %}</a>
+      <a href="{% url 'feed:post_update' post.pk %}" class="btn btn-secondary" aria-label="{% trans 'Editar postagem' %}">{% trans "Editar" %}</a>
+      <a
+        href="{% url 'feed:post_delete' post.pk %}"
+        hx-get="{% url 'feed:post_delete' post.pk %}"
+        hx-target="#modal"
+        hx-trigger="click"
+        hx-swap="innerHTML"
+        hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+        class="btn btn-danger"
+        aria-label="{% trans 'Remover postagem' %}"
+      >{% trans "Remover" %}</a>
+    </div>
+    {% endif %}
+    </div>
+  </article>
+
+  <div id="modal" role="presentation" aria-live="polite"></div>
+
+<script src="{% static 'feed/js/post-detail.js' %}" defer></script>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  {% if request.user.user_type != 'root' %}
+    <script src="{% static 'feed/js/feed.js' %}"></script>
+  {% endif %}
+{% endblock %}

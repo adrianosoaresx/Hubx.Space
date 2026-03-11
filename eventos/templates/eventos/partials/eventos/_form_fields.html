@@ -1,0 +1,293 @@
+{% load i18n static widget_tweaks %}
+<div class="space-y-6">
+  <div class="grid gap-6 md:grid-cols-2">
+    <div>
+      {% include '_forms/field.html' with field=form.titulo %}
+    </div>
+    <div>
+      {% include '_forms/field.html' with field=form.status %}
+    </div>
+  </div>
+
+  <div>
+    {% include '_forms/field.html' with field=form.descricao %}
+  </div>
+
+  <div
+    id="nucleo-field-container"
+    {% if form.nucleo.is_hidden %}data-nucleo-locked="true"{% endif %}
+    data-user-type="{{ request.user.get_tipo_usuario|default:'' }}"
+    class="{% if form.nucleo.is_hidden %}hidden{% endif %}"
+  >
+    {% include '_forms/field.html' with field=form.nucleo %}
+  </div>
+
+  {% with data_inicio_errors=form.data_inicio.errors data_fim_errors=form.data_fim.errors publico_errors=form.publico_alvo.errors participantes_errors=form.participantes_maximo.errors valor_associado_errors=form.valor_associado.errors valor_nucleado_errors=form.valor_nucleado.errors gratuito_errors=form.gratuito.errors %}
+  <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+    <button
+      type="button"
+      class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      data-accordion-toggle
+      aria-expanded="{% if data_inicio_errors or data_fim_errors or publico_errors or participantes_errors or valor_errors or gratuito_errors %}true{% else %}false{% endif %}"
+      aria-controls="evento-informacoes-gerais-panel"
+    >
+      <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Agenda e público" %}</span>
+      <svg
+        class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+        data-accordion-icon
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+    <div
+      id="evento-informacoes-gerais-panel"
+      class="border-t border-[var(--border)] px-4 py-4 {% if not data_inicio_errors and not data_fim_errors and not publico_errors and not participantes_errors and not valor_associado_errors and not valor_nucleado_errors and not gratuito_errors %}hidden{% endif %}"
+      data-accordion-panel
+    >
+      <div class="space-y-6">
+        <div class="grid gap-6 md:grid-cols-2">
+          <div>
+            {% include '_forms/field.html' with field=form.data_inicio %}
+          </div>
+          <div>
+            {% include '_forms/field.html' with field=form.data_fim %}
+          </div>
+        </div>
+        <div class="grid gap-6 md:grid-cols-2">
+          <div>
+            {% include '_forms/field.html' with field=form.publico_alvo %}
+          </div>
+          <div>
+            {% include '_forms/field.html' with field=form.participantes_maximo %}
+          </div>
+        </div>
+        <div class="grid gap-6 md:grid-cols-3">
+          <div
+            id="valor-associado-field-container"
+            class="valor-field{% if form.gratuito.value %} hidden{% endif %}"
+            data-valor-container="associado"
+          >
+            {% include '_forms/field.html' with field=form.valor_associado %}
+          </div>
+          <div
+            id="valor-nucleado-field-container"
+            class="valor-field{% if form.gratuito.value %} hidden{% endif %}"
+            data-valor-container="nucleado"
+          >
+            {% include '_forms/field.html' with field=form.valor_nucleado %}
+          </div>
+          <div>
+            {% include '_forms/field.html' with field=form.gratuito %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+
+  {% with cronograma_has_errors=form.cronograma.errors %}
+  <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+    <button
+      type="button"
+      class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      data-accordion-toggle
+      aria-expanded="{{ cronograma_has_errors|yesno:'true,false' }}"
+      aria-controls="evento-cronograma-panel"
+    >
+      <span class="text-sm font-medium text-[var(--text-primary)]">{{ form.cronograma.label }}</span>
+      <svg
+        class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+        data-accordion-icon
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+    <div
+      id="evento-cronograma-panel"
+      class="border-t border-[var(--border)] px-4 py-4 {% if not cronograma_has_errors %}hidden{% endif %}"
+      data-accordion-panel
+    >
+      {% include '_forms/field.html' with field=form.cronograma hide_label=True %}
+    </div>
+  </div>
+  {% endwith %}
+
+  <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+    <button
+      type="button"
+      class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      data-accordion-toggle
+      aria-expanded="{% if form.local.errors or form.cidade.errors or form.estado.errors or form.cep.errors %}true{% else %}false{% endif %}"
+      aria-controls="evento-localizacao-panel"
+    >
+      <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Localização" %}</span>
+      <svg
+        class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+        data-accordion-icon
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+    <div
+      id="evento-localizacao-panel"
+      class="border-t border-[var(--border)] px-4 py-4 {% if not form.local.errors and not form.cidade.errors and not form.estado.errors and not form.cep.errors %}hidden{% endif %}"
+      data-accordion-panel
+    >
+      <div class="space-y-6">
+        <div>
+          {% include '_forms/field.html' with field=form.local %}
+        </div>
+        <div class="grid gap-6 md:grid-cols-3">
+          <div>
+            {% include '_forms/field.html' with field=form.cidade %}
+          </div>
+          <div>
+            {% include '_forms/field.html' with field=form.estado %}
+          </div>
+          <div>
+            {% include '_forms/field.html' with field=form.cep %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% with parcerias_errors=form.parcerias.errors %}
+  <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+    <button
+      type="button"
+      class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      data-accordion-toggle
+      aria-expanded="{% if parcerias_errors %}true{% else %}false{% endif %}"
+      aria-controls="evento-parcerias-panel"
+    >
+      <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Parcerias" %}</span>
+      <svg
+        class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+        data-accordion-icon
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+    <div
+      id="evento-parcerias-panel"
+      class="border-t border-[var(--border)] px-4 py-4 {% if not parcerias_errors %}hidden{% endif %}"
+      data-accordion-panel
+    >
+      <div>
+        {% include '_forms/field.html' with field=form.parcerias %}
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+
+  {% with info_has_errors=form.informacoes_adicionais.errors %}
+  <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+    <button
+      type="button"
+      class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      data-accordion-toggle
+      aria-expanded="{{ info_has_errors|yesno:'true,false' }}"
+      aria-controls="evento-informacoes-panel"
+    >
+      <span class="text-sm font-medium text-[var(--text-primary)]">{{ form.informacoes_adicionais.label }}</span>
+      <svg
+        class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+        data-accordion-icon
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+    <div
+      id="evento-informacoes-panel"
+      class="border-t border-[var(--border)] px-4 py-4 {% if not info_has_errors %}hidden{% endif %}"
+      data-accordion-panel
+    >
+      {% include '_forms/field.html' with field=form.informacoes_adicionais hide_label=True %}
+    </div>
+  </div>
+  {% endwith %}
+
+  {% with avatar_errors=form.avatar.errors cover_errors=form.cover.errors %}
+  <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+    <button
+      type="button"
+      class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      data-accordion-toggle
+      aria-expanded="{% if avatar_errors or cover_errors %}true{% else %}false{% endif %}"
+      aria-controls="evento-media-panel"
+    >
+      <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Mídias" %}</span>
+      <svg
+        class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+        data-accordion-icon
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+    <div
+      id="evento-media-panel"
+      class="border-t border-[var(--border)] px-4 py-4 {% if not avatar_errors and not cover_errors %}hidden{% endif %}"
+      data-accordion-panel
+    >
+      <div class="space-y-6">
+        <div>
+          {% include '_forms/field.html' with field=form.avatar %}
+        </div>
+        <div>
+          {% include '_forms/field.html' with field=form.cover %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+</div>
+<script src="{% static 'eventos/js/evento-form-fields.js' %}" defer></script>

@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}Chat IA • HubX{% endblock %}
+
+{% block extra_css %}
+<style>
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .chat-message { animation: fade-in 0.18s ease; }
+</style>
+{% endblock %}
+
+{% block hero %}
+{% include 'core/componentes/hero.html' with title=_('Hubx.IA') subtitle=_('Envie perguntas e receba respostas contextualizadas.') neural_background='chat-ia' section_classes='hero-with-neural bg-gradient-to-br from-slate-950 via-indigo-900 to-cyan-900 text-white' container_classes='max-w-7xl mx-auto w-full px-4 py-12 md:py-16' content_classes='flex flex-col gap-6 md:flex-row md:items-center md:justify-between' %}
+
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-4">
+  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div>
+      <p class="text-lg font-semibold">{% trans "Chat com IA" %}</p>
+      <p class="text-sm text-[var(--text-secondary)]">{% trans "Envie perguntas sobre sua organização e receba respostas contextualizadas." %}</p>
+    </div>
+    <div class="flex items-center justify-end">
+      <input type="hidden" id="clear-history-csrf" name="csrfmiddlewaretoken" value="{{ csrf_token }}" />
+      <button
+        id="clear-history-button"
+        type="button"
+        class="btn btn-ghost btn-sm border border-[var(--border)] text-sm"
+        hx-post="{% url 'ai_chat:clear_messages' session_id=session.id %}"
+        hx-target="#chat-history"
+        hx-swap="innerHTML"
+        hx-include="#clear-history-csrf"
+        hx-trigger="confirmed"
+        hx-disabled-elt="this"
+        hx-on::htmx:beforeRequest="this.setAttribute('aria-busy','true');"
+        hx-on::htmx:afterRequest="this.setAttribute('aria-busy','false');"
+        aria-busy="false"
+        title="{% trans 'Limpar histórico de mensagens' %}"
+      >
+        {% trans "Limpar histórico" %}
+      </button>
+    </div>
+  </div>
+
+  {% if missing_organization %}
+    <div class="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] p-6 text-[var(--text-secondary)]">
+      {% trans "Associe-se a uma organização para iniciar uma sessão de chat." %}
+    </div>
+  {% else %}
+    <div class="relative rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-sm min-h-[70vh] max-h-[85vh] overflow-hidden flex flex-col">
+      <div id="chat-history" class="space-y-4 flex-1 min-h-0 overflow-y-auto p-4 md:p-6" aria-live="polite">
+        {% include "ai_chat/partials/_messages.html" with chat_messages=chat_messages %}
+        {% if not chat_messages %}
+          <div class="text-sm text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-dashed border-[var(--border)] rounded-xl p-4">
+            {% trans "Envie a primeira mensagem para começar. Respostas podem incluir gráficos interativos quando disponíveis." %}
+          </div>
+        {% endif %}
+      </div>
+
+      <form
+        id="chat-form"
+        hx-post="{% url 'ai_chat:send_message' session_id=session.id %}"
+        hx-target="#chat-history"
+        hx-swap="beforeend"
+        class="border-t border-[var(--border)] bg-[var(--bg-primary)]/95 backdrop-blur px-4 py-3 md:px-6"
+      >
+        {% csrf_token %}
+        <div class="flex items-end gap-3">
+          <label for="chat-message" class="sr-only">{% trans "Mensagem" %}</label>
+          <textarea
+            id="chat-message"
+            name="message"
+            rows="2"
+            required
+            placeholder="{% trans 'Pergunte sobre eventos, núcleos ou estatísticas...' %}"
+            class="flex-1 resize-none rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          ></textarea>
+          <button
+            id="chat-submit"
+            type="submit"
+            class="btn btn-primary whitespace-nowrap px-4 py-3 text-sm font-semibold flex items-center gap-2"
+            aria-live="polite"
+          >
+            <span>{% trans "Enviar" %}</span>
+          </button>
+          <div
+            id="chat-spinner"
+            class="hidden flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10"
+            aria-live="polite"
+            aria-busy="false"
+            role="status"
+          >
+            <span class="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-l-primary"></span>
+            <span class="sr-only">{% trans "Enviando" %}</span>
+          </div>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+<div
+  id="clear-history-modal"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="clear-history-title"
+  tabindex="-1"
+>
+  <div class="mx-4 w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
+    <div class="flex items-start gap-3 p-6">
+      <div class="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L4.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <div class="space-y-2 text-sm">
+        <p id="clear-history-title" class="text-base font-semibold text-[var(--text-primary)]">{% trans "Limpar histórico" %}</p>
+        <p class="text-[var(--text-secondary)]">{% trans "Deseja limpar o histórico desta sessão? Esta ação não poderá ser desfeita." %}</p>
+      </div>
+    </div>
+    <div class="flex items-center justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
+      <button
+        type="button"
+        id="cancel-clear-history"
+        class="btn btn-ghost btn-sm text-[var(--text-secondary)]"
+      >
+        {% trans "Cancelar" %}
+      </button>
+      <button
+        type="button"
+        id="confirm-clear-history"
+        class="btn btn-primary btn-sm"
+      >
+        {% trans "Limpar" %}
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+  <script>
+    (function () {
+      const historyEl = document.getElementById('chat-history');
+      const formEl = document.getElementById('chat-form');
+      const textareaEl = document.getElementById('chat-message');
+      const submitButton = document.getElementById('chat-submit');
+      const submitSpinner = document.getElementById('chat-spinner');
+      const clearHistoryButton = document.getElementById('clear-history-button');
+      const clearHistoryModal = document.getElementById('clear-history-modal');
+      const confirmClearHistory = document.getElementById('confirm-clear-history');
+      const cancelClearHistory = document.getElementById('cancel-clear-history');
+
+      function scrollToLatest() {
+        if (!historyEl) return;
+        historyEl.scrollTo({ top: historyEl.scrollHeight, behavior: 'smooth' });
+      }
+
+      function openClearHistoryModal() {
+        if (!clearHistoryModal) return;
+        clearHistoryModal.classList.remove('hidden');
+        clearHistoryModal.classList.add('flex');
+        clearHistoryModal.focus();
+      }
+
+      function closeClearHistoryModal() {
+        if (!clearHistoryModal) return;
+        clearHistoryModal.classList.add('hidden');
+        clearHistoryModal.classList.remove('flex');
+      }
+
+      function confirmClearHistoryAction() {
+        if (window.htmx && clearHistoryButton) {
+          htmx.trigger(clearHistoryButton, 'confirmed');
+        }
+        closeClearHistoryModal();
+      }
+
+      function renderPlotlyCharts() {
+        if (!window.Plotly) {
+          setTimeout(renderPlotlyCharts, 120);
+          return;
+        }
+        document.querySelectorAll('[data-plotly-script]').forEach((container) => {
+          if (container.dataset.rendered === 'true') return;
+          const scriptId = container.getAttribute('data-plotly-script');
+          const scriptEl = scriptId ? document.getElementById(scriptId) : null;
+          if (!scriptEl) return;
+          try {
+            const figure = JSON.parse(scriptEl.textContent || '{}');
+            Plotly.newPlot(container, figure.data, figure.layout, { displayModeBar: false, responsive: true });
+            container.dataset.rendered = 'true';
+          } catch (err) {
+            console.error('Erro ao renderizar gráfico', err);
+          }
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        renderPlotlyCharts();
+        scrollToLatest();
+        if (clearHistoryButton) {
+          clearHistoryButton.addEventListener('click', openClearHistoryModal);
+        }
+        if (confirmClearHistory) {
+          confirmClearHistory.addEventListener('click', confirmClearHistoryAction);
+        }
+        if (cancelClearHistory) {
+          cancelClearHistory.addEventListener('click', closeClearHistoryModal);
+        }
+        if (clearHistoryModal) {
+          clearHistoryModal.addEventListener('click', (event) => {
+            if (event.target === clearHistoryModal) {
+              closeClearHistoryModal();
+            }
+          });
+        }
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape' && clearHistoryModal && !clearHistoryModal.classList.contains('hidden')) {
+            closeClearHistoryModal();
+          }
+        });
+      });
+
+      document.body.addEventListener('htmx:afterSwap', (event) => {
+        if (event.target && event.target.id === 'chat-history') {
+          renderPlotlyCharts();
+          scrollToLatest();
+          if (formEl) {
+            formEl.reset();
+          }
+          if (textareaEl) {
+            textareaEl.focus();
+          }
+        }
+      });
+
+      function setLoadingState(isLoading) {
+        if (!textareaEl || !submitButton) return;
+        textareaEl.disabled = isLoading;
+        submitButton.disabled = isLoading;
+        submitButton.setAttribute('aria-busy', String(isLoading));
+
+        if (submitSpinner) {
+          submitSpinner.classList.toggle('hidden', !isLoading);
+          submitSpinner.setAttribute('aria-busy', String(isLoading));
+        }
+
+        submitButton.classList.toggle('hidden', isLoading);
+      }
+
+      if (formEl) {
+        formEl.addEventListener('htmx:beforeRequest', () => {
+          setLoadingState(true);
+        });
+
+        formEl.addEventListener('htmx:afterRequest', () => {
+          setLoadingState(false);
+          if (textareaEl) {
+            textareaEl.focus();
+          }
+        });
+      }
+    })();
+  </script>
+{% endblock %}

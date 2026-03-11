@@ -1,0 +1,712 @@
+from __future__ import annotations
+from collections import defaultdict
+from dataclasses import dataclass, replace
+from typing import List
+from urllib.parse import parse_qsl, urlsplit
+
+from django.urls import NoReverseMatch, reverse
+from django.utils import timezone
+from django.utils.html import format_html
+
+from accounts.models import UserType
+
+
+@dataclass
+class MenuItem:
+    id: str
+    path: str
+    label: str
+    icon: str
+    permissions: List[str] | None = None
+    classes: str = "flex items-center gap-x-2 hover:text-primary transition"
+    children: List["MenuItem"] | None = None
+    target: str | None = None
+
+
+# Icons as raw HTML so they can be injected into the template safely
+ICON_USER = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-6 h-6\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\" />
+  <circle cx=\"12\" cy=\"7\" r=\"4\" />
+</svg>
+"""
+
+ICON_DASHBOARD = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\" />
+  <rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\" />
+  <rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\" />
+  <rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\" />
+</svg>
+"""
+
+ICON_USERS = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" />
+  <path d=\"M16 3.128a4 4 0 0 1 0 7.744\" />
+  <path d=\"M22 21v-2a4 4 0 0 0-3-3.87\" />
+  <circle cx=\"9\" cy=\"7\" r=\"4\" />
+</svg>
+"""
+
+ICON_NETWORK = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <circle cx=\"18\" cy=\"5\" r=\"3\" />
+  <circle cx=\"6\" cy=\"12\" r=\"3\" />
+  <circle cx=\"18\" cy=\"19\" r=\"3\" />
+  <path d=\"M8.59 13.51 15.42 17.49\" />
+  <path d=\"M15.41 6.51 8.59 10.49\" />
+</svg>
+"""
+
+ICON_COMPANIES = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z\" />
+  <path d=\"M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2\" />
+  <path d=\"M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2\" />
+  <path d=\"M10 6h4\" />
+  <path d=\"M10 10h4\" />
+  <path d=\"M10 14h4\" />
+  <path d=\"M10 18h4\" />
+</svg>
+"""
+
+ICON_EVENTOS = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M8 2v4\" />
+  <path d=\"M16 2v4\" />
+  <rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" />
+  <path d=\"M3 10h18\" />
+  <path d=\"M8 14h.01\" />
+  <path d=\"M12 14h.01\" />
+  <path d=\"M16 14h.01\" />
+  <path d=\"M8 18h.01\" />
+  <path d=\"M12 18h.01\" />
+  <path d=\"M16 18h.01\" />
+</svg>
+"""
+
+ICON_FEED = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M4 11a9 9 0 0 1 9 9\" />
+  <path d=\"M4 4a16 16 0 0 1 16 16\" />
+  <circle cx=\"5\" cy=\"19\" r=\"1\" />
+</svg>
+"""
+
+ICON_ORGS = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <rect x=\"16\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" />
+  <rect x=\"2\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" />
+  <rect x=\"9\" y=\"2\" width=\"6\" height=\"6\" rx=\"1\" />
+  <path d=\"M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3\" />
+  <path d=\"M12 12V8\" />
+</svg>
+"""
+
+ICON_TOKEN = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4\" />
+  <path d=\"m21 2-9.6 9.6\" />
+  <circle cx=\"7.5\" cy=\"15.5\" r=\"5.5\" />
+</svg>
+"""
+
+ICON_CONFIG = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" />
+  <circle cx=\"12\" cy=\"12\" r=\"3\" />
+</svg>
+"""
+
+ICON_LOGOUT = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"m16 17 5-5-5-5\" />
+  <path d=\"M21 12H9\" />
+  <path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\" />
+</svg>
+"""
+
+ICON_LOGIN = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"m10 17 5-5-5-5\" />
+  <path d=\"M15 12H3\" />
+  <path d=\"M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4\" />
+</svg>
+"""
+
+ICON_REGISTER = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" />
+  <circle cx=\"9\" cy=\"7\" r=\"4\" />
+  <line x1=\"19\" x2=\"19\" y1=\"8\" y2=\"14\" />
+  <line x1=\"22\" x2=\"16\" y1=\"11\" y2=\"11\" />
+</svg>
+"""
+
+ICON_INFO = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <circle cx=\"12\" cy=\"12\" r=\"10\" />
+  <path d=\"M12 16v-4\" />
+  <path d=\"M12 8h.01\" />
+</svg>
+"""
+
+ICON_BRIEFCASE = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z\" />
+  <path d=\"M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\" />
+  <path d=\"M3 13h18\" />
+</svg>
+"""
+
+ICON_CHAT = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z\" />
+</svg>
+"""
+
+ICON_STAR = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <polygon points=\"12 17.27 18.18 21 16.54 13.97 22 9.24 14.81 8.63 12 2 9.19 8.63 2 9.24 7.46 13.97 5.82 21 12 17.27\" />
+</svg>
+"""
+
+ICON_LOCK = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" />
+  <path d=\"M7 11V7a5 5 0 0 1 10 0v4\" />
+</svg>
+"""
+
+ICON_SETTINGS = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z\" />
+  <path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z\" />
+</svg>
+"""
+
+ICON_LINK = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M9 15 7.5 16.5a3.54 3.54 0 0 1-5-5L5 9\" />
+  <path d=\"m15 9 1.5-1.5a3.54 3.54 0 0 1 5 5L19 15\" />
+  <path d=\"m8 12 4 0\" />
+  <path d=\"m12 12 4 0\" />
+</svg>
+"""
+
+ICON_PLUS = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M12 5v14\" />
+  <path d=\"M5 12h14\" />
+</svg>
+"""
+
+ICON_CHART = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M3 3v18h18\" />
+  <path d=\"m9 17 2-3 3 2 4-6\" />
+</svg>
+"""
+
+ICON_BUILDING = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M3 21V7a2 2 0 0 1 2-2h3V3a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2h3a2 2 0 0 1 2 2v14\" />
+  <path d=\"M9 21V9\" />
+  <path d=\"M15 21V9\" />
+  <path d=\"M3 21h18\" />
+</svg>
+"""
+
+ICON_PLUG = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M10 4V2\" />
+  <path d=\"M14 4V2\" />
+  <path d=\"M7 8h10\" />
+  <path d=\"M7 8a5 5 0 0 0 10 0\" />
+  <path d=\"M12 13v9\" />
+</svg>
+"""
+
+ICON_DOWNLOAD = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />
+  <path d=\"m7 10 5 5 5-5\" />
+  <path d=\"M12 15V3\" />
+</svg>
+"""
+
+ICON_UPLOAD = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />
+  <path d=\"m17 9-5-5-5 5\" />
+  <path d=\"M12 4v12\" />
+</svg>
+"""
+
+ICON_TABLE = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M3 10h18\" />
+  <path d=\"M10 3v18\" />
+  <rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" />
+</svg>
+"""
+
+ICON_FILE_SEARCH = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9.5Z\" />
+  <path d=\"M14 2v6h6\" />
+  <path d=\"M9 11h1\" />
+  <path d=\"M9 15h6\" />
+  <circle cx=\"11.5\" cy=\"17.5\" r=\"2.5\" />
+  <path d=\"m13.3 19.3 1.4 1.4\" />
+</svg>
+"""
+
+ICON_TREND_UP = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"m3 17 6-6 4 4 8-8\" />
+  <path d=\"M14 7h7v7\" />
+</svg>
+"""
+
+ICON_ALERT = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z\" />
+  <path d=\"M12 9v4\" />
+  <path d=\"M12 17h.01\" />
+</svg>
+"""
+
+ICON_CLOCK = """
+<svg aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"w-4 h-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+  <circle cx=\"12\" cy=\"12\" r=\"10\" />
+  <path d=\"M12 6v6l3 3\" />
+</svg>
+"""
+
+
+def _get_menu_items() -> List[MenuItem]:
+    def _safe_reverse(view_name: str) -> str | None:
+        try:
+            return reverse(view_name)
+        except NoReverseMatch:
+            return None
+
+    perfil_url = reverse("accounts:perfil")
+    configuracoes_url = reverse("configuracoes:configuracoes")
+    nucleos_url = reverse("nucleos:list")
+    # URLs de eventos
+    eventos_url = reverse("eventos:lista")
+    feed_url = reverse("feed:listar")
+    eventos_url = reverse("eventos:lista")  # Link principal (menu raiz) abre a lista de eventos
+    perfil_children: list[MenuItem] = []
+
+    conexoes_dashboard_url = reverse("conexoes:perfil_sections_conexoes")
+    authenticated_non_guests = [
+        "root",
+        "admin",
+        "coordenador",
+        "nucleado",
+        "associado",
+        "operador",
+        "consultor",
+        UserType.ROOT,
+        UserType.ADMIN,
+        UserType.COORDENADOR,
+        UserType.NUCLEADO,
+        UserType.ASSOCIADO,
+        UserType.OPERADOR,
+        UserType.CONSULTOR,
+    ]
+    non_root_authenticated_users = [
+        "admin",
+        "coordenador",
+        "nucleado",
+        "associado",
+        "operador",
+        "consultor",
+    ]
+
+    conexoes_children: List[MenuItem] = []
+
+    configuracoes_children: List[MenuItem] = []
+
+    nucleos_children = []
+
+    membros_children = []
+
+    eventos_children = []
+
+    feed_children: List[MenuItem] = []
+
+    return [
+        MenuItem(
+            id="perfil",
+            path=perfil_url,
+            label="Perfil",
+            icon=ICON_USER,
+            permissions=["authenticated"],
+            classes="flex items-center hover:text-primary transition",
+            children=perfil_children,
+        ),
+        MenuItem(
+            id="admin-dashboard",
+            path=reverse("dashboard:admin_dashboard"),
+            label="Dashboard",
+            icon=ICON_DASHBOARD,
+            permissions=[
+                "admin",
+                "operador",
+                "root",
+                "associado",
+                "coordenador",
+                UserType.COORDENADOR,
+                "nucleado",
+                UserType.NUCLEADO,
+                "consultor",
+                UserType.CONSULTOR,
+            ],
+        ),
+        MenuItem(
+            id="portfolio",
+            path=reverse("portfolio:index"),
+            label="Portfólio",
+            icon=ICON_BRIEFCASE,
+            permissions=authenticated_non_guests,
+        ),
+        *(
+            [
+                MenuItem(
+                    id="ai-chat",
+                    path=ai_chat_path,
+                    label="Hubx.IA",
+                    icon=ICON_CHAT,
+                    permissions=[
+                        UserType.ASSOCIADO,
+                        UserType.COORDENADOR,
+                        UserType.NUCLEADO,
+                        UserType.CONSULTOR,
+                        "admin",
+                        "operador",
+                        UserType.ROOT,
+                    ],
+                )
+            ]
+            if (ai_chat_path := _safe_reverse("ai_chat:chat"))
+            else []
+        ),
+        MenuItem(
+            id="conexoes",
+            path=conexoes_dashboard_url,
+            label="Conexões",
+            icon=ICON_LINK,
+            permissions=non_root_authenticated_users,
+            children=conexoes_children,
+        ),
+        MenuItem(
+            "membros",
+            reverse("membros:membros_lista"),
+            "Membros",
+            ICON_USERS,
+            ["admin", "operador"],
+            children=membros_children,
+        ),
+        MenuItem(
+            "nucleos",
+            nucleos_url,
+            "Núcleos",
+            ICON_NETWORK,
+            [
+                "admin",
+                "coordenador",
+                "nucleado",
+                "associado",
+                "consultor",
+                UserType.CONSULTOR,
+            ],
+            children=nucleos_children,
+        ),
+        MenuItem(
+            "eventos",
+            eventos_url,
+            "Eventos",
+            ICON_EVENTOS,
+            [
+                "admin",
+                "coordenador",
+                "nucleado",
+                "associado",
+                "convidado",
+                "consultor",
+                UserType.CONSULTOR,
+            ],
+            children=eventos_children,
+        ),
+        MenuItem(
+            "feed",
+            feed_url,
+            "Mural",
+            ICON_FEED,
+            [
+                "admin",
+                "coordenador",
+                "nucleado",
+                "associado",
+                "convidado",
+                "consultor",
+                UserType.CONSULTOR,
+            ],
+            children=feed_children,
+        ),
+        MenuItem("organizacoes", reverse("organizacoes:list"), "Organizações", ICON_ORGS, ["root"]),
+        MenuItem(
+            "configuracoes",
+            reverse("configuracoes:configuracoes"),
+            "Configurações",
+            ICON_CONFIG,
+            ["authenticated"],
+            "hover:text-primary transition",
+            configuracoes_children,
+        ),
+        MenuItem("logout", reverse("accounts:logout"), "Sair", ICON_LOGOUT, ["authenticated"]),
+        MenuItem("login", reverse("accounts:login"), "Entrar", ICON_LOGIN, ["anonymous"]),
+        MenuItem(
+            "register",
+            reverse("tokens:token"),
+            "Cadastrar",
+            ICON_REGISTER,
+            ["anonymous"],
+            classes="gap-x-2 btn btn-primary",
+        ),
+    ]
+
+
+def _build_organizacao_site_menu_item(user) -> MenuItem | None:
+    if not getattr(user, "is_authenticated", False):
+        return None
+
+    organizacao = getattr(user, "organizacao", None)
+    if not organizacao:
+        return None
+
+    nome_site = (getattr(organizacao, "nome_site", "") or "").strip()
+    site_url = (getattr(organizacao, "site", "") or "").strip()
+    if not nome_site or not site_url:
+        return None
+
+    icone_field = getattr(organizacao, "icone_site", None)
+    if icone_field and getattr(icone_field, "url", None):
+        icon_html = format_html(
+            '<img src="{}" alt="{}" class="w-6 h-6 object-contain rounded" loading="lazy" />',
+            icone_field.url,
+            nome_site,
+        )
+    else:
+        icon_html = ICON_LINK
+
+    return MenuItem(
+        id="organizacao-site",
+        path=site_url,
+        label=nome_site,
+        icon=icon_html,
+        permissions=["authenticated"],
+        classes="flex items-center gap-x-2 hover:text-primary transition",
+        target="_blank",
+    )
+
+
+def _build_organizacao_admin_menu_item(user) -> MenuItem | None:
+    if not getattr(user, "is_authenticated", False):
+        return None
+
+    org_id = getattr(user, "organizacao_id", None)
+    if not org_id:
+        return None
+
+    tipo_attr = getattr(user, "get_tipo_usuario", None)
+    if callable(tipo_attr):
+        tipo_attr = tipo_attr()
+    if isinstance(tipo_attr, UserType):
+        tipo_attr = tipo_attr.value
+
+    raw_attr = getattr(user, "user_type", None)
+    if isinstance(raw_attr, UserType):
+        raw_attr = raw_attr.value
+
+    if tipo_attr != UserType.ADMIN.value and raw_attr != UserType.ADMIN.value:
+        return None
+
+    return MenuItem(
+        id="organizacao-admin",
+        path=reverse("organizacoes:update", kwargs={"pk": org_id}),
+        label="Organização",
+        icon=ICON_ORGS,
+        permissions=["admin"],
+    )
+
+
+def _resolve_dashboard_path(user) -> str:
+    """Retorna a URL correta do dashboard conforme o perfil do usuário."""
+
+    if not getattr(user, "is_authenticated", False):
+        return reverse("dashboard:admin_dashboard")
+
+    tipo_usuario = getattr(user, "get_tipo_usuario", None)
+    if isinstance(tipo_usuario, UserType):
+        tipo_usuario = tipo_usuario.value
+
+    if not tipo_usuario:
+        raw_user_type = getattr(user, "user_type", None)
+        if isinstance(raw_user_type, UserType):
+            raw_user_type = raw_user_type.value
+        tipo_usuario = raw_user_type
+
+    if tipo_usuario in {UserType.ASSOCIADO.value, UserType.NUCLEADO.value}:
+        return reverse("dashboard:membro_dashboard")
+
+    if tipo_usuario == UserType.COORDENADOR.value:
+        return reverse("dashboard:coordenador_dashboard")
+
+    if tipo_usuario == UserType.CONSULTOR.value:
+        return reverse("dashboard:consultor_dashboard")
+
+    if tipo_usuario in {
+        UserType.ADMIN.value,
+        UserType.OPERADOR.value,
+        UserType.ROOT.value,
+    }:
+        return reverse("dashboard:admin_dashboard_admin")
+
+    return reverse("dashboard:admin_dashboard")
+
+
+def _apply_dashboard_path(items: List[MenuItem], dashboard_path: str) -> None:
+    for item in items:
+        if item.id == "admin-dashboard":
+            item.path = dashboard_path
+            return
+        if item.children:
+            _apply_dashboard_path(item.children, dashboard_path)
+
+
+def _user_has_permission(user, item: MenuItem) -> bool:
+    perms = item.permissions or []
+    if not perms:
+        return True
+    if "anonymous" in perms and not user.is_authenticated:
+        return True
+    if "authenticated" in perms and user.is_authenticated:
+        return True
+    if user.is_authenticated:
+        def _coerce(value):
+            if isinstance(value, UserType):
+                return value.value
+            return value
+
+        tipo_attr = getattr(user, "get_tipo_usuario", None)
+        if callable(tipo_attr):
+            tipo_attr = tipo_attr()
+        raw_attr = getattr(user, "user_type", None)
+
+        tipo_value = _coerce(tipo_attr)
+        raw_value = _coerce(raw_attr)
+
+        normalized_perms = {_coerce(perm) for perm in perms}
+
+        for candidate in (tipo_value, raw_value):
+            if candidate and candidate in normalized_perms:
+                return True
+
+        for candidate in (tipo_attr, raw_attr):
+            if candidate and candidate in perms:
+                return True
+    return False
+
+
+def _filter_items(items: List[MenuItem], user) -> List[MenuItem]:
+    filtered: List[MenuItem] = []
+    for item in items:
+        filtered_children = _filter_items(item.children, user) if item.children else []
+        if item.id == "ai-chat" and not getattr(user, "organizacao_id", None):
+            continue
+        if _user_has_permission(user, item):
+            filtered_item = replace(item, children=filtered_children or None)
+            filtered.append(filtered_item)
+    return filtered
+
+
+def _collect_path_queries(items: List[MenuItem], mapping):
+    for item in items:
+        split = urlsplit(item.path)
+        query = tuple(sorted(parse_qsl(split.query, keep_blank_values=True)))
+        mapping[split.path].add(query)
+        if item.children:
+            _collect_path_queries(item.children, mapping)
+
+
+def _mark_active(items: List[MenuItem], current_full_path: str, path_queries) -> bool:
+    any_active = False
+    current_split = urlsplit(current_full_path)
+    current_query = tuple(sorted(parse_qsl(current_split.query, keep_blank_values=True)))
+    for item in items:
+        child_active = False
+        if item.children:
+            child_active = _mark_active(item.children, current_full_path, path_queries)
+
+        split = urlsplit(item.path)
+        item_query = tuple(sorted(parse_qsl(split.query, keep_blank_values=True)))
+        same_path = current_split.path == split.path
+        is_current = False
+
+        if same_path:
+            if item_query:
+                is_current = current_query == item_query
+            else:
+                other_queries = {
+                    q for q in path_queries.get(split.path, set()) if q
+                }
+                is_current = current_query not in other_queries
+        elif (
+            not item_query
+            and split.path
+            and split.path != "/"
+            and current_split.path.startswith(split.path)
+        ):
+            is_current = True
+
+        item.is_current = is_current
+        item.has_active_child = child_active
+        item.is_active = is_current or child_active
+        item.is_expanded = item.is_active
+        any_active = any_active or item.is_active
+    return any_active
+
+
+def build_menu(request) -> List[MenuItem]:
+    """Retorna itens de menu filtrados por tipo de usuário."""
+
+    items = _get_menu_items()
+    user = request.user
+    dashboard_path = _resolve_dashboard_path(user)
+    _apply_dashboard_path(items, dashboard_path)
+    filtered = _filter_items(items, user)
+    org_site_item = _build_organizacao_site_menu_item(user)
+    if org_site_item:
+        logout_index = next(
+            (idx for idx, item in enumerate(filtered) if item.id == "logout"),
+            len(filtered),
+        )
+        filtered.insert(logout_index, org_site_item)
+    org_admin_item = _build_organizacao_admin_menu_item(user)
+    if org_admin_item:
+        config_index = next(
+            (idx for idx, item in enumerate(filtered) if item.id == "configuracoes"),
+            len(filtered),
+        )
+        filtered.insert(config_index, org_admin_item)
+    current_full_path = request.get_full_path()
+    path_queries = defaultdict(set)
+    _collect_path_queries(filtered, path_queries)
+    _mark_active(filtered, current_full_path, path_queries)
+    return filtered

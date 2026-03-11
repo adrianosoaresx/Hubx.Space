@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load i18n lucide_icons static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block hero %}{% include 'eventos/componentes/hero_evento.html' with title=title subtitle=subtitle %}{% endblock %}
+
+{% block content %}
+  <article class="card border border-[var(--border)] bg-[var(--bg-secondary)]">
+    <div class="card-header flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h2 class="text-xl font-semibold">{{ title }}</h2>
+        {% if subtitle %}
+          <p class="text-sm text-[var(--text-secondary)]">{{ subtitle }}</p>
+        {% endif %}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <a href="{% url 'eventos:briefing_template_create' %}" class="btn btn-primary inline-flex items-center gap-2">
+          {% lucide 'plus' class='h-4 w-4' aria_hidden='true' %}
+          {% trans "Novo modelo" %}
+        </a>
+        {% if back_href %}
+          <a href="{{ back_href }}" class="btn btn-secondary inline-flex items-center gap-2">
+            {% lucide 'arrow-left' class='h-4 w-4' aria_hidden='true' %}
+            {% trans "Voltar" %}
+          </a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body space-y-6">
+      {% include 'eventos/briefings/_carousel.html' with templates=object_list empty_message='' %}
+    </div>
+  </article>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+{% endblock %}

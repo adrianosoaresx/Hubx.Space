@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+{% load i18n lucide_icons static %}
+
+{% block title %}{% trans 'Membros' %}{% endblock %}
+
+{% block hero %}
+  {% include 'membros/componentes/hero_membros.html' with title=_('Membros') action_template='membros/componentes/hero_action.html' %}
+{% endblock %}
+
+{% block content %}
+
+  <div class="space-y-6">
+    <div>
+      <form
+        class="flex flex-col gap-3 md:flex-row md:items-center"
+        role="search"
+        novalidate
+        data-membros-search-form
+        data-initial-search-term="{{ search_term }}"
+        data-feedback-found-template="{% blocktrans with term='__term__' %}Resultado encontrado: {{ term }}.{% endblocktrans %}"
+        data-feedback-not-found-template="{% blocktrans with term='__term__' %}Nenhum membro correspondente a {{ term }}.{% endblocktrans %}"
+        data-feedback-empty="{% trans 'Digite um termo para buscar membros.' %}"
+      >
+        <div class="flex w-full items-center gap-2">
+          <label for="membros-search" class="sr-only">{% trans "Buscar membros" %}</label>
+          <input
+            type="search"
+            id="membros-search"
+            name="q"
+            value="{{ search_term }}"
+            autocomplete="off"
+            placeholder="{% trans 'Buscar por nome, usuário ou contato' %}"
+            class="input input-bordered w-full"
+            data-membros-search-input
+          />
+          <button type="submit" class="btn btn-secondary shrink-0" aria-label="{% trans 'Buscar' %}">
+            {% lucide 'search' class='h-4 w-4' aria_hidden='true' %}
+          </button>
+        </div>
+      </form>
+      <p
+        class="text-sm text-[var(--text-secondary)]"
+        data-membros-search-feedback
+        id="membros-search-feedback"
+        hidden
+        role="status"
+        aria-live="polite"
+      ></p>
+    </div>
+
+    <details class="card group" data-membros-section="sem-nucleo" id="membros-section-sem_nucleo" {% if open_section == 'sem_nucleo' %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-500)] shadow-lg shadow-[var(--color-primary-500)]/15">
+            {% lucide 'user-round-minus' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p class="text-xl font-semibold">{% trans "Associados sem núcleo" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=membros_sem_nucleo_count %}
+                {{ count }} Associado no total
+              {% plural %}
+                {{ count }} Associados no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div >
+        {% include 'membros/partials/carousel.html' with page=membros_sem_nucleo_page section='sem_nucleo' empty_message=membros_section_empty_messages.sem_nucleo fetch_url=membros_fetch_url search_term=search_term %}
+      </div>
+    </details>
+
+    <details class="card group" data-membros-section="nucleados" id="membros-section-nucleados" {% if open_section == 'nucleados' %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-500)] shadow-lg shadow-[var(--color-success-500)]/15">
+            {% lucide 'user-round-plus' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p class="text-xl font-semibold">{% trans "Nucleados" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=membros_nucleados_count %}
+                {{ count }} Nucleado no total
+              {% plural %}
+                {{ count }} Nucleados no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div>
+        {% include 'membros/partials/carousel.html' with page=membros_nucleados_page section='nucleados' empty_message=membros_section_empty_messages.nucleados fetch_url=membros_fetch_url search_term=search_term %}
+      </div>
+    </details>
+
+    <details class="card group" data-membros-section="leads" id="membros-section-leads" {% if open_section == 'leads' %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-500)] shadow-lg shadow-[var(--color-primary-500)]/15">
+            {% lucide 'user-search' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p class="text-xl font-semibold">{% trans "Leads de Associação" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=membros_leads_count %}
+                {{ count }} lead de associação no total
+              {% plural %}
+                {{ count }} leads de associação no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div>
+        {% include 'membros/partials/carousel.html' with page=membros_leads_page section='leads' empty_message=membros_section_empty_messages.leads fetch_url=membros_fetch_url search_term=search_term %}
+      </div>
+    </details>
+
+    <details class="card group" data-membros-section="consultores" id="membros-section-consultores" {% if open_section == 'consultores' %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)] shadow-lg shadow-[var(--color-warning-500)]/20">
+            {% lucide 'user-round-cog' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p class="text-xl font-semibold">{% trans "Consultores" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=membros_consultores_count %}
+                {{ count }} consultor no total
+              {% plural %}
+                {{ count }} consultores no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div>
+        {% include 'membros/partials/carousel.html' with page=membros_consultores_page section='consultores' empty_message=membros_section_empty_messages.consultores fetch_url=membros_fetch_url search_term=search_term %}
+      </div>
+    </details>
+
+    <details class="card group" data-membros-section="coordenadores" id="membros-section-coordenadores" {% if open_section == 'coordenadores' %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/20">
+            {% lucide 'shield-check' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p class="text-xl font-semibold">{% trans "Coordenadores" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=membros_coordenadores_count %}
+                {{ count }} coordenador no total
+              {% plural %}
+                {{ count }} coordenadores no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div>
+        {% include 'membros/partials/carousel.html' with page=membros_coordenadores_page section='coordenadores' empty_message=membros_section_empty_messages.coordenadores fetch_url=membros_fetch_url search_term=search_term %}
+      </div>
+    </details>
+
+    <details class="card group" data-membros-section="inativos" id="membros-section-inativos" {% if open_section == 'inativos' %}open{% endif %}>
+      <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-error-500)]/10 text-[var(--color-error-600)] shadow-lg shadow-[var(--color-error-500)]/20">
+            {% lucide 'user-round-x' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p class="text-xl font-semibold">{% trans "Associados inativos" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=membros_inativos_count %}
+                {{ count }} associado inativo no total
+              {% plural %}
+                {{ count }} associados inativos no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+          {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div>
+        {% include 'membros/partials/carousel.html' with page=membros_inativos_page section='inativos' empty_message=membros_section_empty_messages.inativos fetch_url=membros_fetch_url search_term=search_term %}
+      </div>
+    </details>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+{% endblock %}

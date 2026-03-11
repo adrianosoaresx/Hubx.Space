@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% load i18n l10n lucide_icons static %}
+
+{% block title %}{% trans "Meu dashboard" %}{% endblock %}
+
+{% block hero %}
+  {% include "dashboard/componentes/dashboard_hero.html" with title=_("Meu dashboard") subtitle=_("Acompanhe suas conexões, eventos e destaques pessoais.") container_classes="max-w-5xl mx-auto w-full px-6 py-14 md:py-16" %}
+{% endblock %}
+
+{% block content %}
+  <div class="mx-auto flex w-full max-w-5xl flex-col space-y-8">
+    <section aria-labelledby="membro-metricas-title" class="space-y-6">
+      <details class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-500)] shadow-lg shadow-[var(--color-primary-500)]/15"
+            >
+              {% lucide 'trending-up' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h2 id="membro-metricas-title" class="text-xl font-semibold text-[var(--text-primary)]">
+                {% trans "Métricas principais" %}
+              </h2>
+              <p class="text-sm text-[var(--text-secondary)]">
+                {% trans "Uma visão geral do seu engajamento na comunidade." %}
+              </p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-6">
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {% include "_partials/cards/total_card.html" with label=_("Pontuação média de avaliações") valor=avaliacao_display icon_name="star" %}
+            {% include "_partials/cards/total_card.html" with label=_("Total de conexões") valor=total_conexoes icon_name="users" %}
+            {% include "_partials/cards/total_card.html" with label=_("Postagens publicadas") valor=total_posts icon_name="megaphone" %}
+            {% include "_partials/cards/total_card.html" with label=_("Reações no feed") valor=total_reacoes icon_name="heart" %}
+          </div>
+          <p class="text-sm text-[var(--text-muted)]">
+            {% blocktrans trimmed count total=avaliacao_total %}
+              Você registrou {{ total }} avaliação.
+            {% plural %}
+              Você registrou {{ total }} avaliações.
+            {% endblocktrans %}
+          </p>
+        </div>
+      </details>
+
+      <details class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-[var(--color-primary-600)]">
+              {% lucide 'users' class='h-5 w-5' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h3 id="membro-conexoes-title" class="text-lg font-semibold text-[var(--text-primary)]">{% trans "Suas conexões" %}</h3>
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Pessoas com quem você já está conectado." %}</p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-4">
+          <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">
+            {% for conexao in conexoes %}
+              <li>
+                <a
+                  href="{% url 'accounts:perfil_publico_uuid' conexao.public_id %}"
+                  class="
+                    flex h-full flex-col gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]
+                    px-4 py-3 transition hover:border-[var(--color-primary-500)] hover:text-[var(--color-primary-600)]
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]
+                    focus-visible:ring-offset-2
+                  "
+                  aria-label="{% blocktrans trimmed with nome=conexao.get_full_name|default:conexao.username %}Ver perfil de {{ nome }}{% endblocktrans %}"
+                >
+                  <span class="text-sm font-medium text-[var(--text-primary)]">{{ conexao.get_full_name|default:conexao.username }}</span>
+                  {% if conexao.organizacao %}
+                    <span class="text-xs text-[var(--text-muted)]">{{ conexao.organizacao }}</span>
+                  {% endif %}
+                </a>
+              </li>
+            {% empty %}
+              <li class="rounded-lg border border-dashed border-[var(--border)] px-4 py-3 text-sm text-[var(--text-secondary)] sm:col-span-2 lg:col-span-3">
+                {% trans "Você ainda não possui conexões ativas." %}
+              </li>
+            {% endfor %}
+          </ul>
+          {% if conexoes_restantes > 0 %}
+            <p class="text-xs text-[var(--text-secondary)]">
+              {% blocktrans trimmed with restantes=conexoes_restantes %}
+                + {{ restantes }} outras conexões.
+              {% endblocktrans %}
+            </p>
+          {% endif %}
+        </div>
+      </details>
+
+      <details class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-[var(--color-success-600)]">
+              {% lucide 'layers' class='h-5 w-5' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h3 id="membro-nucleos-title" class="text-lg font-semibold text-[var(--text-primary)]">{% trans "Meus núcleos" %}</h3>
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Grupos dos quais você faz parte." %}</p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-4">
+          {% with participacoes_count=participacoes|length %}
+            <div
+              class="space-y-4"
+              data-carousel-root="membro-nucleos"
+              data-current-slide="1"
+              data-backend-page="1"
+              data-backend-total-pages="1"
+              aria-label="{% trans 'Navegação de núcleos do membro' %}"
+            >
+              <div class="relative">
+                <div class="card overflow-hidden rounded-xl" data-carousel-viewport>
+                  <div class="flex transition-transform duration-500 ease-out" data-carousel-track role="list">
+                    {% include 'dashboard/partials/membro_nucleo_carousel_slide.html' with participacoes=participacoes page_number=1 %}
+                  </div>
+                </div>
+                {% if participacoes_count > 0 %}
+                  <div class="absolute inset-y-0 left-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group mr-3 flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-prev
+                      aria-label="{% trans 'Anterior' %}"
+                    >
+                      {% lucide 'circle-chevron-left' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="absolute inset-y-0 right-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-next
+                      aria-label="{% trans 'Próximo' %}"
+                    >
+                      {% lucide 'circle-chevron-right' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="pointer-events-none absolute inset-y-0 left-0 hidden w-16 bg-gradient-to-r from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-16 bg-gradient-to-l from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                {% endif %}
+              </div>
+            </div>
+          {% endwith %}
+        </div>
+      </details>
+
+      <details class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-[var(--color-info-600)]">
+              {% lucide 'calendar-days' class='h-5 w-5' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h3 id="membro-eventos-title" class="text-lg font-semibold text-[var(--text-primary)]">{% trans "Meus eventos" %}</h3>
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Participações confirmadas ou inscrições em andamento." %}</p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-4">
+          {% with inscricoes_count=inscricoes_ativas|length %}
+            <div
+              class="space-y-4"
+              data-carousel-root="membro-eventos"
+              data-current-slide="1"
+              data-backend-page="1"
+              data-backend-total-pages="1"
+              aria-label="{% trans 'Navegação de eventos do membro' %}"
+            >
+              <div class="relative">
+                <div class="card overflow-hidden rounded-xl" data-carousel-viewport>
+                  <div class="flex transition-transform duration-500 ease-out" data-carousel-track role="list">
+                    {% include 'dashboard/partials/membro_evento_carousel_slide.html' with inscricoes=inscricoes_ativas page_number=1 %}
+                  </div>
+                </div>
+                {% if inscricoes_count > 0 %}
+                  <div class="absolute inset-y-0 left-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group mr-3 flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-prev
+                      aria-label="{% trans 'Anterior' %}"
+                    >
+                      {% lucide 'circle-chevron-left' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="absolute inset-y-0 right-4 flex items-center">
+                    <button
+                      type="button"
+                      class="group flex items-center justify-center text-[var(--text-primary)] transition hover:bg-[var(--color-primary-500)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]"
+                      data-carousel-next
+                      aria-label="{% trans 'Próximo' %}"
+                    >
+                      {% lucide 'circle-chevron-right' class='h-8 w-8' aria_hidden='true' %}
+                    </button>
+                  </div>
+                  <div class="pointer-events-none absolute inset-y-0 left-0 hidden w-16 bg-gradient-to-r from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-16 bg-gradient-to-l from-[var(--bg-primary)]/90 to-transparent lg:block"></div>
+                {% endif %}
+              </div>
+            </div>
+          {% endwith %}
+        </div>
+      </details>
+    </section>
+
+    <section aria-labelledby="membro-inscricoes-title" class="space-y-6">
+      <details class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/15">
+              {% lucide 'qr-code' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h2 id="membro-inscricoes-title" class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Minhas inscrições" %}</h2>
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Acesse seus ingressos e confira o QR Code para o check-in." %}</p>
+            </div>
+          </div>
+          <span class="text-[var(--text-muted)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-4">
+          {% if inscricoes_ativas %}
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {% for inscricao in inscricoes_ativas %}
+                {% with evento=inscricao.evento %}
+                  <section class="flex flex-col gap-4 rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-4 shadow-sm">
+                    {% if inscricao.qrcode_url %}
+                      <div class="flex flex-col items-center gap-2">
+                        <img
+                          src="{{ inscricao.qrcode_url }}"
+                          alt="{% trans 'QR Code da inscrição' %}"
+                          class="h-40 w-40 rounded-md border border-[var(--border)] bg-white p-2"
+                          loading="lazy"
+                        />
+                        <p class="text-xs text-[var(--text-secondary)]">{% trans "Apresente este QR Code para realizar o check-in." %}</p>
+                      </div>
+                    {% else %}
+                      <p class="text-sm text-[var(--text-secondary)]">{% trans "QR Code indisponível no momento." %}</p>
+                    {% endif %}
+                    <div class="space-y-4">
+                      <div class="space-y-1">
+                        <h3 class="text-lg font-semibold text-[var(--text-primary)]">{{ evento.titulo|default:_("Evento indisponível") }}</h3>
+                        <p class="text-sm text-[var(--text-secondary)]">
+                          {% if evento %}
+                            {{ evento.data_inicio|date:'SHORT_DATETIME_FORMAT' }}{% if evento.local %} · {{ evento.local }}{% endif %}
+                          {% else %}
+                            {% trans "Data do evento indisponível" %}
+                          {% endif %}
+                        </p>
+                      </div>
+                      <div class="rounded-lg border border-[var(--border)] bg-[var(--background-primary)] px-3 py-4">
+                        <dl class="grid grid-cols-1 gap-3 text-sm">
+                          <div class="flex flex-col gap-1">
+                            <dt class="text-[var(--text-secondary)]">{% trans "Valor pago" %}</dt>
+                            <dd class="font-medium text-[var(--text-primary)]">
+                              {% if inscricao.valor_exibicao %}
+                                {{ inscricao.valor_exibicao|localize }}
+                              {% else %}
+                                {% trans "Não informado" %}
+                              {% endif %}
+                            </dd>
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <dt class="text-[var(--text-secondary)]">{% trans "Status" %}</dt>
+                            <dd class="font-medium text-[var(--text-primary)]">{{ inscricao.get_status_display }}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+                  </section>
+                {% endwith %}
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-[var(--text-secondary)]">{% trans "Você não possui inscrições ativas no momento." %}</p>
+          {% endif %}
+        </div>
+      </details>
+    </section>
+
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+{% endblock %}

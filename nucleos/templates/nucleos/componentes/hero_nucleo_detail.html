@@ -1,0 +1,42 @@
+{% load i18n lucide_icons %}
+<section class="hero-with-neural relative isolate overflow-hidden text-white">
+  {% if nucleo.cover %}
+    <div class="absolute inset-0">
+      <img src="{{ nucleo.cover.url }}" alt="" class="h-full w-full object-cover" loading="lazy">
+      <div class="absolute inset-0 bg-black/45"></div>
+    </div>
+  {% else %}
+    <div class="absolute inset-0 bg-gradient-to-r from-[var(--hero-from)] to-[var(--hero-to)]"
+         style="--hero-from: var(--color-primary-500); --hero-to: var(--color-primary-700);"></div>
+  {% endif %}
+  <div class="hero-content relative z-10 w-full">
+    <div class="max-w-7xl mx-auto w-full px-4 py-8 sm:py-10">
+      <div class="relative min-h-[220px] sm:min-h-[240px] md:min-h-[260px]">
+        <div class="absolute left-4 bottom-4 flex flex-wrap items-center gap-3 sm:gap-4">
+          <div class="shrink-0">
+            {% if nucleo.avatar %}
+              <img src="{{ nucleo.avatar.url }}" alt="{{ nucleo.nome }}" class="h-16 w-16 rounded-full object-cover ring-4 ring-white/50 sm:h-20 sm:w-20" loading="lazy">
+            {% else %}
+              <div class="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-semibold uppercase ring-4 ring-white/30 sm:h-20 sm:w-20 sm:text-3xl"
+                   role="img" aria-label="{{ nucleo.nome }}">
+                {{ nucleo.nome|slice:':1'|upper }}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        {% if mostrar_feed_nucleo and nucleo_feed_url %}
+          <div class="absolute right-4 top-4 flex flex-wrap items-center justify-center gap-3 md:right-6 md:top-6">
+            <a
+              href="{{ nucleo_feed_url }}"
+              class="btn btn-primary btn-lg inline-flex items-center gap-2"
+              aria-label="{% trans 'Ver feed restrito do núcleo' %}"
+            >
+              {% lucide 'messages-square' class='h-4 w-4' aria_hidden='true' %}
+              {% trans 'Mural do núcleo' %}
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>

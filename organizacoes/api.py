@@ -1,0 +1,429 @@
+from __future__ import annotations
+
+from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
+from sentry_sdk import capture_exception
+
+from accounts.models import UserType
+from accounts.serializers import UserSerializer
+from eventos.models import Evento
+from eventos.serializers import EventoSerializer
+from core.cache import get_cache_version
+from core.permissions import IsOrgAdmin, IsOrgAdminOrSuperuser, IsRoot
+from feed.api import PostSerializer
+from feed.models import FeedPluginConfig, Post
+from nucleos.models import Nucleo
+from nucleos.serializers import NucleoSerializer
+
+from .metrics import detail_latency_seconds, list_latency_seconds
+from .models import (
+    Organizacao,
+    OrganizacaoAtividadeLog,
+    OrganizacaoChangeLog,
+    OrganizacaoRecurso,
+)
+from .serializers import (
+    FeedPluginConfigSerializer,
+    OrganizacaoAtividadeLogSerializer,
+    OrganizacaoChangeLogSerializer,
+    OrganizacaoRecursoSerializer,
+    OrganizacaoSerializer,
+)
+from .tasks import organizacao_alterada
+
+
+class OrganizacaoViewSet(viewsets.ModelViewSet):
+    queryset = Organizacao.objects.all()
+    serializer_class = OrganizacaoSerializer
+    permission_classes = [IsAuthenticated]
+    cache_timeout = 60
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related("created_by").prefetch_related("users")
+        user = self.request.user
+        if (
+            user.is_superuser
+            or user.get_tipo_usuario == UserType.ROOT.value
+            or getattr(user, "user_type", None) == UserType.ROOT.value
+        ):
+            pass
+        elif user.get_tipo_usuario == UserType.ADMIN.value or getattr(user, "user_type", None) == UserType.ADMIN.value:
+            org_id = getattr(user, "organizacao_id", None)
+            if org_id is None:
+                e = PermissionDenied()
+                capture_exception(e)
+                raise e
+            qs = qs.filter(pk=org_id)
+        else:
+            e = PermissionDenied()
+            capture_exception(e)
+            raise e
+
+        params = self.request.query_params
+
+        action = getattr(self, "action", "")
+
+        def _filter_inativa(queryset, value):
+            truthy = {"1", "true", "t", "yes"}
+            falsy = {"0", "false", "f", "no"}
+            if value not in (None, ""):
+                v = value.lower()
+                if v in truthy:
+                    return queryset.filter(inativa=True)
+                if v in falsy:
+                    return queryset.filter(inativa=False)
+            if action == "list":
+                return queryset.filter(inativa=False)
+            return queryset
+
+        filters = {
+            "search": lambda q, v: q.filter(Q(nome__icontains=v)),
+            "tipo": lambda q, v: q.filter(tipo=v),
+            "cidade": lambda q, v: q.filter(cidade=v),
+            "estado": lambda q, v: q.filter(estado=v),
+            "inativa": _filter_inativa,
+        }
+
+        for key, func in filters.items():
+            value = params.get(key)
+            if value not in (None, "") or key == "inativa":
+                qs = func(qs, value)
+        ordering = params.get("ordering")
+        allowed = {"nome", "tipo", "cidade", "estado", "created_at"}
+        if ordering and ordering.lstrip("-") in allowed:
+            qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by("nome")
+        return qs
+
+    def _cache_key(self, request) -> str:
+        params = request.query_params
+        version = get_cache_version("organizacoes_list")
+        keys = [
+            str(getattr(request.user, "pk", "")),
+            params.get("search", ""),
+            params.get("tipo", ""),
+            params.get("cidade", ""),
+            params.get("estado", ""),
+            params.get("inativa", ""),
+            params.get("ordering", ""),
+            params.get("page", ""),
+            params.get("page_size", ""),
+        ]
+        return f"organizacoes_list_v{version}_" + "_".join(keys)
+
+    def list(self, request, *args, **kwargs):  # type: ignore[override]
+        with list_latency_seconds.time():
+            key = self._cache_key(request)
+            cached = cache.get(key)
+            if cached is not None:
+                response = Response(cached)
+                response["X-Cache"] = "HIT"
+                return response
+            response = super().list(request, *args, **kwargs)
+            cache.set(key, response.data, self.cache_timeout)
+            response["X-Cache"] = "MISS"
+            return response
+
+    def retrieve(self, request, *args, **kwargs):  # type: ignore[override]
+        with detail_latency_seconds.time():
+            return super().retrieve(request, *args, **kwargs)
+
+    def get_permissions(self):
+        if self.action in {
+            "create",
+            "destroy",
+            "partial_update",
+            "update",
+            "inativar",
+            "reativar",
+            "history",
+        }:
+            if self.action in {"partial_update", "update"}:
+                self.permission_classes = [IsAuthenticated, IsOrgAdmin]
+            else:
+                self.permission_classes = [IsAuthenticated, IsRoot]
+        elif self.action in {"list", "retrieve"}:
+            self.permission_classes = [IsAuthenticated, IsOrgAdminOrSuperuser]
+        return super().get_permissions()
+
+    def create(self, request, *args, **kwargs):  # type: ignore[override]
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:  # pragma: no cover - auditing
+            capture_exception(e)
+            raise
+
+    def update(self, request, *args, **kwargs):  # type: ignore[override]
+        try:
+            return super().update(request, *args, **kwargs)
+        except Exception as e:  # pragma: no cover - auditing
+            capture_exception(e)
+            raise
+
+    def partial_update(self, request, *args, **kwargs):  # type: ignore[override]
+        try:
+            return super().partial_update(request, *args, **kwargs)
+        except Exception as e:  # pragma: no cover - auditing
+            capture_exception(e)
+            raise
+
+    def perform_destroy(self, instance: Organizacao) -> None:
+        instance.delete()
+        OrganizacaoAtividadeLog.objects.create(
+            organizacao=instance,
+            usuario=self.request.user,
+            acao="deleted",
+        )
+        organizacao_alterada.send(sender=self.__class__, organizacao=instance, acao="deleted")
+
+    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated, IsRoot])
+    def inativar(self, request, pk: str | None = None):
+        try:
+            organizacao = self.get_object()
+            organizacao.inativa = True
+            organizacao.inativada_em = timezone.now()
+            organizacao.save(update_fields=["inativa", "inativada_em"])
+            OrganizacaoAtividadeLog.objects.create(
+                organizacao=organizacao,
+                usuario=request.user,
+                acao="inactivated",
+            )
+            organizacao_alterada.send(sender=self.__class__, organizacao=organizacao, acao="inactivated")
+            serializer = self.get_serializer(organizacao)
+            return Response(serializer.data)
+        except Exception as e:  # pragma: no cover - auditing
+            capture_exception(e)
+            raise
+
+    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated, IsRoot])
+    def reativar(self, request, pk: str | None = None):
+        try:
+            organizacao = self.get_object()
+            organizacao.inativa = False
+            organizacao.inativada_em = None
+            organizacao.save(update_fields=["inativa", "inativada_em"])
+            OrganizacaoAtividadeLog.objects.create(
+                organizacao=organizacao,
+                usuario=request.user,
+                acao="reactivated",
+            )
+            organizacao_alterada.send(sender=self.__class__, organizacao=organizacao, acao="reactivated")
+            serializer = self.get_serializer(organizacao)
+            return Response(serializer.data)
+        except Exception as e:  # pragma: no cover - auditing
+            capture_exception(e)
+            raise
+
+    @action(detail=True, methods=["get"], url_path="history")
+    def history(self, request, pk: str | None = None):
+        try:
+            organizacao = self.get_object()
+            change_logs = OrganizacaoChangeLog.all_objects.filter(organizacao=organizacao).order_by("-created_at")[:10]
+            atividade_logs = OrganizacaoAtividadeLog.all_objects.filter(organizacao=organizacao).order_by(
+                "-created_at"
+            )[:10]
+
+            change_ser = OrganizacaoChangeLogSerializer(change_logs, many=True)
+            atividade_ser = OrganizacaoAtividadeLogSerializer(atividade_logs, many=True)
+            return Response({"changes": change_ser.data, "activities": atividade_ser.data})
+        except Exception as e:  # pragma: no cover - auditing
+            capture_exception(e)
+            raise
+
+
+class OrganizacaoContextMixin:
+    def get_organizacao(self):
+        org = get_object_or_404(Organizacao, pk=self.kwargs["organizacao_pk"])
+        perm = IsOrgAdminOrSuperuser()
+        if not perm.has_object_permission(self.request, self, org):
+            e = PermissionDenied()
+            capture_exception(e)
+            raise e
+        return org
+
+
+class OrganizacaoRelatedViewSet(OrganizacaoContextMixin, viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+
+
+class OrganizacaoRelatedModelViewSet(OrganizacaoContextMixin, viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+
+
+class OrganizacaoUserViewSet(OrganizacaoRelatedModelViewSet):
+    serializer_class = UserSerializer
+
+    def get_queryset(self):
+        org = self.get_organizacao()
+        return org.users.all()
+
+    def list(self, request, *args, **kwargs):  # type: ignore[override]
+        org = self.get_organizacao()
+        qs = get_user_model().objects.filter(organizacao__isnull=True)
+        search = request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(contato__icontains=search) | Q(username__icontains=search))
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):  # type: ignore[override]
+        org = self.get_organizacao()
+        user_id = request.data.get("user_id")
+        user = get_object_or_404(get_user_model(), pk=user_id)
+        if user.organizacao_id is not None:
+            return Response(status=status.HTTP_409_CONFLICT)
+        user.organizacao = org
+        user.save(update_fields=["organizacao"])
+        serializer = self.get_serializer(user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, pk=None, organizacao_pk=None):  # type: ignore[override]
+        org = self.get_organizacao()
+        user = get_object_or_404(get_user_model(), pk=pk, organizacao=org)
+        user.organizacao = None
+        user.save(update_fields=["organizacao"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["get"], url_path="membros")
+    def membros(self, request, organizacao_pk: str | None = None):
+        qs = self.get_queryset().filter(user_type=UserType.ASSOCIADO.value)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+
+class OrganizacaoEventoViewSet(OrganizacaoRelatedModelViewSet):
+    serializer_class = EventoSerializer
+
+    def get_queryset(self):
+        org = self.get_organizacao()
+        return Evento.objects.filter(organizacao=org, deleted=False)
+
+    def list(self, request, *args, **kwargs):  # type: ignore[override]
+        org = self.get_organizacao()
+        qs = Evento.objects.filter(deleted=False, organizacao__isnull=True)
+        search = request.query_params.get("search")
+        if search:
+            qs = qs.filter(titulo__icontains=search)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):  # type: ignore[override]
+        org = self.get_organizacao()
+        evento_id = request.data.get("evento_id")
+        evento = get_object_or_404(Evento, pk=evento_id)
+        if evento.organizacao_id is not None:
+            return Response(status=status.HTTP_409_CONFLICT)
+        evento.organizacao = org
+        evento.save(update_fields=["organizacao"])
+        serializer = self.get_serializer(evento)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, pk=None, organizacao_pk=None):  # type: ignore[override]
+        org = self.get_organizacao()
+        evento = get_object_or_404(Evento, pk=pk, organizacao=org)
+        evento.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OrganizacaoRelatedAssociationViewSet(OrganizacaoRelatedModelViewSet):
+    model = None  # type: ignore[assignment]
+    serializer_class = None  # type: ignore[assignment]
+    search_field = "nome"
+    id_field: str | None = None
+
+    def get_queryset(self):  # type: ignore[override]
+        org = self.get_organizacao()
+        return self.model.objects.filter(organizacao=org, deleted=False)
+
+    def list(self, request, *args, **kwargs):  # type: ignore[override]
+        org = self.get_organizacao()
+
+        qs = self.model.objects.filter(deleted=False, organizacao__isnull=True)
+        search = request.query_params.get("search")
+        if search:
+            qs = qs.filter(**{f"{self.search_field}__icontains": search})
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    def _get_id_field(self) -> str:
+        return self.id_field or f"{self.model.__name__.lower()}_id"
+
+    def create(self, request, *args, **kwargs):  # type: ignore[override]
+        org = self.get_organizacao()
+
+        obj_id = request.data.get(self._get_id_field())
+        obj = get_object_or_404(self.model, pk=obj_id)
+        if obj.organizacao_id is not None:
+            return Response(status=status.HTTP_409_CONFLICT)
+        obj.organizacao = org
+        obj.save(update_fields=["organizacao"])
+        serializer = self.get_serializer(obj)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, pk=None, organizacao_pk=None):  # type: ignore[override]
+        org = self.get_organizacao()
+        obj = get_object_or_404(self.model, pk=pk, organizacao=org)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OrganizacaoNucleoViewSet(OrganizacaoRelatedAssociationViewSet):
+    model = Nucleo
+    serializer_class = NucleoSerializer
+
+
+class OrganizacaoEventoViewSet(OrganizacaoRelatedAssociationViewSet):
+    model = Evento
+    serializer_class = EventoSerializer
+    search_field = "titulo"
+
+class OrganizacaoPostViewSet(OrganizacaoRelatedAssociationViewSet):
+    model = Post
+    serializer_class = PostSerializer
+    search_field = "conteudo"
+
+
+class OrganizacaoPluginViewSet(OrganizacaoRelatedModelViewSet):
+    serializer_class = FeedPluginConfigSerializer
+
+    def get_queryset(self):
+        org = self.get_organizacao()
+        return FeedPluginConfig.objects.filter(organizacao=org)
+
+    def perform_create(self, serializer):
+        serializer.save(organizacao=self.get_organizacao())
+
+
+class OrganizacaoRecursoViewSet(OrganizacaoRelatedModelViewSet):
+    serializer_class = OrganizacaoRecursoSerializer
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        org = self.get_organizacao()
+        return OrganizacaoRecurso.objects.filter(organizacao=org, deleted=False)
+
+    def perform_create(self, serializer):
+        serializer.save(organizacao=self.get_organizacao())

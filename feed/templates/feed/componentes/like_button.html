@@ -1,0 +1,21 @@
+{% load i18n lucide_icons %}
+{% if request.user.user_type != 'root' %}
+{% with liked=post.is_liked count=post.like_count %}
+<button
+  type="button"
+  class="reaction-btn btn btn-secondary hover:text-emerald-600"
+  data-post-id="{{ post.id }}"
+  data-reaction-type="like"
+  data-active-class="text-emerald-600"
+  aria-pressed="{% if liked %}true{% else %}false{% endif %}"
+  data-reaction-state="{% if liked %}active{% else %}inactive{% endif %}"
+  aria-label="{% if liked %}{% translate 'Descurtir' %}{% else %}{% translate 'Curtir' %}{% endif %}"
+>
+  <span data-reaction-icon class="reaction-icon {% if liked %}text-emerald-600{% endif %}">
+    {% lucide 'heart' class='w-4 h-4' %}
+  </span>
+  <span data-reaction-count>{{ count }}</span>
+</button>
+{% endwith %}
+{% endif %}
+

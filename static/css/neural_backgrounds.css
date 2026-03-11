@@ -1,0 +1,292 @@
+/* Neural Network Backgrounds CSS for Django */
+/* Base styles for all neural backgrounds */
+
+.neural-bg-base {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.dark .neural-bg-base {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* Individual module backgrounds */
+
+/* Home/Página Principal */
+.neural-bg-home {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(14, 165, 233, 0.18) 0%,
+    rgba(59, 130, 246, 0.14) 30%,
+    rgba(30, 64, 175, 0.1) 60%,
+    rgba(30, 58, 138, 0.05) 80%,
+    transparent 100%
+  );
+}
+
+/* Congratulation */
+.neural-bg-congratulation {
+  background: radial-gradient(
+      ellipse at 30% 30%,
+      rgba(34, 197, 94, 0.18) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 70% 70%,
+      rgba(14, 165, 233, 0.16) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at center,
+      rgba(16, 185, 129, 0.14) 0%,
+      transparent 60%
+    );
+}
+
+/* Portfólio */
+.neural-bg-portfolio {
+  background: radial-gradient(
+      ellipse at 30% 30%,
+      rgba(192, 132, 252, 0.18) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 70% 70%,
+      rgba(124, 58, 237, 0.15) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at center,
+      rgba(76, 29, 149, 0.12) 0%,
+      transparent 65%
+    );
+}
+
+/* Núcleos */
+.neural-bg-nucleos {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(14, 165, 233, 0.15) 0%,
+    rgba(59, 130, 246, 0.12) 30%,
+    rgba(30, 64, 175, 0.08) 60%,
+    rgba(30, 58, 138, 0.04) 80%,
+    transparent 100%
+  );
+}
+
+/* Conexões */
+.neural-bg-conexoes {
+  background: radial-gradient(ellipse at 20% 30%, rgba(14, 165, 233, 0.12) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 70%, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(30, 64, 175, 0.08) 0%, transparent 50%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.03) 0%, rgba(59, 130, 246, 0.05) 50%, rgba(30, 64, 175, 0.03) 100%);
+}
+
+/* Membros */
+.neural-bg-membros {
+  background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(59, 130, 246, 0.05) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(59, 130, 246, 0.05) 50%,
+      rgba(59, 130, 246, 0.05) 75%,
+      transparent 75%,
+      transparent 100%
+    ),
+    linear-gradient(
+      0deg,
+      transparent 0%,
+      rgba(14, 165, 233, 0.05) 33%,
+      transparent 33%,
+      transparent 66%,
+      rgba(14, 165, 233, 0.05) 66%,
+      transparent 100%
+    );
+  background-size: 200px 200px, 200px 150px;
+}
+
+/* Eventos */
+.neural-bg-eventos {
+  background: linear-gradient(
+    90deg,
+    rgba(14, 165, 233, 0.12) 0%,
+    rgba(59, 130, 246, 0.08) 50%,
+    rgba(30, 64, 175, 0.05) 100%
+  );
+}
+
+/* Feed */
+.neural-bg-feed {
+  background: linear-gradient(
+    180deg,
+    rgba(14, 165, 233, 0.08) 0%,
+    rgba(59, 130, 246, 0.04) 50%,
+    rgba(30, 64, 175, 0.02) 100%
+  );
+}
+
+/* Dashboard */
+.neural-bg-dashboard {
+  background: linear-gradient(45deg, transparent 49%, rgba(59, 130, 246, 0.1) 50%, transparent 51%),
+    linear-gradient(-45deg, transparent 49%, rgba(30, 64, 175, 0.05) 50%, transparent 51%);
+  background-size: 20px 20px;
+}
+
+/* Financeiro */
+.neural-bg-financeiro {
+  background: linear-gradient(
+    45deg,
+    rgba(14, 165, 233, 0.05) 0%,
+    rgba(59, 130, 246, 0.08) 50%,
+    rgba(30, 64, 175, 0.1) 100%
+  );
+}
+
+/* Tokens */
+.neural-bg-tokens {
+  background: repeating-linear-gradient(
+      90deg,
+      rgba(14, 165, 233, 0.1) 0px,
+      rgba(14, 165, 233, 0.1) 2px,
+      transparent 2px,
+      transparent 20px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(59, 130, 246, 0.05) 0px,
+      rgba(59, 130, 246, 0.05) 2px,
+      transparent 2px,
+      transparent 20px
+    );
+}
+
+/* Chat IA */
+.neural-bg-chat-ia {
+  background: radial-gradient(ellipse at 20% 20%, rgba(56, 189, 248, 0.18) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 30%, rgba(99, 102, 241, 0.16) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 70%, rgba(14, 165, 233, 0.14) 0%, transparent 50%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 27, 75, 0.8) 50%, rgba(8, 47, 73, 0.85) 100%);
+}
+
+/* Configuração */
+.neural-bg-configuracao {
+  background: radial-gradient(circle at 30% 30%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(30, 64, 175, 0.05) 0%, transparent 50%);
+}
+
+/* Animation classes */
+.neural-pulse {
+  animation: neural-pulse 2s ease-in-out infinite;
+}
+
+.neural-flow {
+  animation: neural-flow 4s linear infinite;
+}
+
+.neural-rotate {
+  animation: neural-rotate 20s linear infinite;
+}
+
+@keyframes neural-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes neural-flow {
+  0% {
+    transform: translateY(-100px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+@keyframes neural-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .neural-bg-base svg {
+    transform: scale(0.8);
+  }
+}
+
+@media (max-width: 480px) {
+  .neural-bg-base svg {
+    transform: scale(0.6);
+  }
+}
+
+/* Hero component integration */
+.hero-with-neural {
+  position: relative;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hero-neural-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  width: 100%;
+  padding: clamp(1.5rem, 4vw, 2.5rem) 0;
+}
+
+.hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.1) 100%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Dark mode adjustments */
+.dark .hero-overlay {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.2) 100%);
+}

@@ -1,0 +1,16 @@
+{% load lucide_icons %}
+{% if badges %}
+  {% with container_classes=container_classes|default:'flex flex-wrap gap-2 px-4 pt-4 pb-3' %}
+    <div class="{{ container_classes }}">
+      {% for badge in badges %}
+        <span
+          class="inline-flex max-w-full items-center gap-2 rounded-full bg-[var(--primary-soft,rgba(59,130,246,0.15))] px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-wide text-[var(--primary,#2563eb)] shadow-sm ring-1 ring-[var(--primary-soft-border,rgba(59,130,246,0.3))] whitespace-nowrap"
+          {% if badge.style %}style="{{ badge.style }}"{% endif %}
+        >
+          {% lucide badge.icon|default:'badge-check' class='h-3.5 w-3.5 shrink-0' aria_hidden='true' %}
+          <span class="truncate">{{ badge.label }}</span>
+        </span>
+      {% endfor %}
+    </div>
+  {% endwith %}
+{% endif %}

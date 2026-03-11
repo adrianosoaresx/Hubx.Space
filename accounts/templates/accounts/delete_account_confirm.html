@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Excluir Conta" %} - HubX{% endblock %}
+{% block content %}
+<section class="max-w-xl mx-auto px-4 py-12 bg-[var(--bg-primary)]">
+  <h1 class="text-2xl font-bold text-center mb-6 text-[var(--text-primary)]">{% trans "Excluir Conta" %}</h1>
+  <div class="rounded-2xl card p-6 space-y-5 bg-[var(--bg-secondary)]">
+    <p class="text-sm text-[var(--error)] bg-[var(--error-light)] rounded-xl px-4 py-3">
+      {% blocktrans %}
+        A exclusão da conta é permanente e removerá todos os dados associados. Esta ação não pode ser desfeita.
+        Apenas contas inativas podem ser excluídas definitivamente; desative antes de prosseguir.
+      {% endblocktrans %}
+    </p>
+    {% if not is_self %}
+      <p class="text-sm text-[var(--text-secondary)]">
+        {% blocktrans with nome=target_user.get_full_name %}
+          Você está excluindo a conta de {{ nome }}.
+        {% endblocktrans %}
+      </p>
+    {% endif %}
+    <form method="post" class="space-y-5">
+      {% csrf_token %}
+      {% if not is_self %}
+        <input type="hidden" name="public_id" value="{{ target_user.public_id }}" />
+        <input type="hidden" name="username" value="{{ target_user.username }}" />
+      {% endif %}
+      <div class="space-y-2">
+        <label for="confirm" class="block text-sm font-medium text-[var(--text-secondary)]">
+          {% trans "Digite EXCLUIR para confirmar" %}
+        </label>
+        <input
+          type="text"
+          name="confirm"
+          id="confirm"
+          required
+          inputmode="latin"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          placeholder="{{ confirmation_token }}"
+          class="w-full rounded-md border px-3 py-2 bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-primary)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+          aria-describedby="delete-account-helper"
+          data-confirm-input
+          data-confirm-token="{{ confirmation_token }}"
+        />
+        <p id="delete-account-helper" class="text-xs text-[var(--text-tertiary)]">
+          {% blocktrans with token=confirmation_token %}
+            Digite {{ token }} exatamente como mostrado para habilitar a exclusão.
+          {% endblocktrans %}
+        </p>
+      </div>
+      <div class="flex justify-end">
+        <button
+          type="submit"
+          class="btn btn-danger"
+          data-confirm-submit
+          disabled
+          aria-disabled="true"
+        >
+          {% trans "Confirmar exclusão" %}
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script src="{% static 'accounts/js/delete-account-confirm.js' %}" defer></script>
+{% endblock %}

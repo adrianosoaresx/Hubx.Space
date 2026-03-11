@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans 'Histórico de Notificações' %} | HubX{% endblock %}
+
+{% block hero %}
+  {% include 'core/componentes/hero.html' with title=_('Histórico de Notificações') subtitle=_('Consulte notificações recorrentes enviadas para os núcleos.') %}
+{% endblock %}
+
+{% block content %}
+  <div class="mx-auto w-full max-w-6xl px-4 py-10">
+    <article class="card">
+      <header class="card-header space-y-2">
+        <h2 class="text-xl font-semibold text-[var(--text-primary)]">{% trans 'Histórico de Notificações' %}</h2>
+        <p class="text-sm text-[var(--text-secondary)]">
+          {% trans 'Consulte notificações recorrentes enviadas para os núcleos.' %}
+        </p>
+      </header>
+      <div class="card-body space-y-6">
+        <form method="get" class="space-y-6">
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {% for field in form %}
+              {% include '_forms/field.html' with field=field %}
+            {% endfor %}
+          </div>
+          <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+            <button type="submit" class="btn btn-primary">{% trans 'Filtrar' %}</button>
+          </div>
+        </form>
+        {# Container atualizado via HTMX para preservar o layout do card enquanto o histórico é recarregado dinamicamente #}
+        <div id="historico-container">
+          {% include 'notificacoes/historico_table.html' %}
+        </div>
+      </div>
+    </article>
+  </div>
+{% endblock %}

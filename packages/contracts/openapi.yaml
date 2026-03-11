@@ -1,0 +1,591 @@
+openapi: 3.0.3
+info:
+  title: Hubx REST API
+  version: 0.1.0
+  description: >
+    Contrato REST inicial da Etapa 2.
+    Escopo atual cobre apenas endpoints REST/DRF e APIs HTTP de pagamentos.
+servers:
+  - url: http://localhost:8000
+tags:
+  - name: accounts
+  - name: tokens
+  - name: organizacoes
+  - name: nucleos
+  - name: eventos
+  - name: feed
+  - name: notificacoes
+  - name: configuracoes
+  - name: ai_chat
+  - name: audit
+  - name: pagamentos
+paths:
+  /api/accounts/accounts/:
+    get:
+      tags: [accounts]
+      summary: Listar contas
+      responses:
+        "200":
+          description: OK
+  /api/accounts/accounts/{id}/activate/:
+    post:
+      tags: [accounts]
+      summary: Ativar usuário da organização
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Usuário ativado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountStatusResponse"
+        "400":
+          description: Erro de domínio (já ativo ou payload inválido)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "403":
+          description: Sem permissão para gerir o usuário
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /api/accounts/accounts/{id}/deactivate/:
+    post:
+      tags: [accounts]
+      summary: Desativar usuário da organização
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Usuário desativado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountStatusResponse"
+        "400":
+          description: Erro de domínio (já inativo ou payload inválido)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "403":
+          description: Sem permissão para gerir o usuário
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /api/accounts/accounts/confirm-email/:
+    post:
+      tags: [accounts]
+      summary: Confirmar e-mail por token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        "200":
+          description: E-mail confirmado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessageResponse"
+        "400":
+          description: Token ausente/inválido/expirado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /api/accounts/accounts/resend-confirmation/:
+    post:
+      tags: [accounts]
+      summary: Reenviar e-mail de confirmação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "204":
+          description: Processado sem vazamento de existência da conta
+        "400":
+          description: E-mail ausente ou conta já ativada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /api/accounts/accounts/request-password-reset/:
+    post:
+      tags: [accounts]
+      summary: Solicitar redefinição de senha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "204":
+          description: Processado sem vazamento de existência da conta
+        "400":
+          description: E-mail ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /api/accounts/accounts/reset-password/:
+    post:
+      tags: [accounts]
+      summary: Redefinir senha com token de recuperação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Senha redefinida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessageResponse"
+        "400":
+          description: Dados incompletos, token inválido ou senha inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /api/tokens/tokens/:
+    get:
+      tags: [tokens]
+      summary: Listar tokens
+      responses:
+        "200":
+          description: OK
+  /api/organizacoes/organizacoes/:
+    get:
+      tags: [organizacoes]
+      summary: Listar organizacoes
+      responses:
+        "200":
+          description: OK
+  /api/nucleos/nucleos/:
+    get:
+      tags: [nucleos]
+      summary: Listar nucleos
+      responses:
+        "200":
+          description: OK
+  /api/nucleos/aceitar-convite/:
+    post:
+      tags: [nucleos]
+      summary: Aceitar convite de nucleo
+      responses:
+        "200":
+          description: OK
+  /api/eventos/eventos/:
+    get:
+      tags: [eventos]
+      summary: Listar eventos
+      responses:
+        "200":
+          description: OK
+  /api/eventos/inscricoes/:
+    get:
+      tags: [eventos]
+      summary: Listar inscricoes em eventos
+      responses:
+        "200":
+          description: OK
+  /api/feed/posts/:
+    get:
+      tags: [feed]
+      summary: Listar posts do feed
+      responses:
+        "200":
+          description: OK
+  /api/feed/comments/:
+    get:
+      tags: [feed]
+      summary: Listar comentarios do feed
+      responses:
+        "200":
+          description: OK
+  /api/feed/bookmarks/:
+    get:
+      tags: [feed]
+      summary: Listar favoritos do feed
+      responses:
+        "200":
+          description: OK
+  /api/notificacoes/logs/:
+    get:
+      tags: [notificacoes]
+      summary: Listar logs de notificacoes
+      responses:
+        "200":
+          description: OK
+  /api/notificacoes/templates/:
+    get:
+      tags: [notificacoes]
+      summary: Listar templates de notificacao
+      responses:
+        "200":
+          description: OK
+  /api/notificacoes/enviar/:
+    post:
+      tags: [notificacoes]
+      summary: Enviar notificacao
+      responses:
+        "200":
+          description: OK
+  /api/configuracoes/configuracoes-conta/:
+    get:
+      tags: [configuracoes]
+      summary: Ler configuracoes da conta
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [configuracoes]
+      summary: Atualizar configuracoes da conta
+      responses:
+        "200":
+          description: OK
+  /api/configuracoes/testar/:
+    post:
+      tags: [configuracoes]
+      summary: Testar notificacao
+      responses:
+        "200":
+          description: OK
+  /api/ai-chat/sessions/:
+    get:
+      tags: [ai_chat]
+      summary: Listar sessoes de chat
+      responses:
+        "200":
+          description: OK
+  /api/ai-chat/messages/:
+    get:
+      tags: [ai_chat]
+      summary: Listar mensagens de chat
+      responses:
+        "200":
+          description: OK
+  /api/audit/logs/:
+    get:
+      tags: [audit]
+      summary: Listar trilha de auditoria
+      responses:
+        "200":
+          description: OK
+  /pagamentos/webhook/mercadopago/:
+    post:
+      tags: [pagamentos]
+      summary: Webhook Mercado Pago
+      description: Endpoint principal de webhook com validação de assinatura HMAC.
+      security: []
+      parameters:
+        - in: header
+          name: X-Signature
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentWebhookPayload"
+            examples:
+              external_id_nested:
+                summary: Payload com id externo em data.id
+                value:
+                  data:
+                    id: "external-unknown-2"
+      responses:
+        "200":
+          description: Webhook processado (inclui transação desconhecida)
+        "400":
+          $ref: "#/components/responses/PagamentosWebhookMissingExternalId"
+        "403":
+          $ref: "#/components/responses/PagamentosWebhookInvalidSignature"
+  /pagamentos/api/payments/mercadopago/webhook/:
+    post:
+      tags: [pagamentos]
+      summary: Webhook Mercado Pago (compatibilidade)
+      description: Endpoint legado de compatibilidade para o mesmo processamento do webhook principal.
+      security: []
+      parameters:
+        - in: header
+          name: X-Signature
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentWebhookPayload"
+            examples:
+              external_id_nested:
+                value:
+                  data:
+                    id: "external-unknown-2"
+      responses:
+        "200":
+          description: Webhook processado
+        "400":
+          $ref: "#/components/responses/PagamentosWebhookMissingExternalId"
+        "403":
+          $ref: "#/components/responses/PagamentosWebhookInvalidSignature"
+  /pagamentos/webhook/paypal/:
+    post:
+      tags: [pagamentos]
+      summary: Webhook PayPal
+      description: Webhook com validação de assinatura HMAC via cabeçalho específico do PayPal.
+      security: []
+      parameters:
+        - in: header
+          name: X-Paypal-Signature
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentWebhookPayload"
+            examples:
+              external_id_nested:
+                value:
+                  data:
+                    id: "paypal-external-1"
+      responses:
+        "200":
+          description: Webhook processado
+        "400":
+          $ref: "#/components/responses/PagamentosWebhookMissingExternalId"
+        "403":
+          $ref: "#/components/responses/PagamentosWebhookInvalidSignature"
+  /pagamentos/mp/retorno/{status}/:
+    get:
+      tags: [pagamentos]
+      summary: Retorno de pagamento Mercado Pago
+      description: Renderiza status de retorno do pagamento e mensagem contextual, incluindo cenário sem transação vinculada.
+      security: []
+      parameters:
+        - in: path
+          name: status
+          required: true
+          schema:
+            type: string
+            enum: [sucesso, falha, pendente]
+        - in: query
+          name: token
+          required: false
+          schema:
+            type: string
+          description: Token de pagamento para localizar transação.
+        - in: query
+          name: payment_id
+          required: false
+          schema:
+            type: string
+          description: ID externo de pagamento para localizar transação.
+      responses:
+        "200":
+          description: Tela de retorno renderizada (com ou sem transação encontrada)
+          content:
+            text/html:
+              schema:
+                type: string
+              examples:
+                not_found_message:
+                  summary: Transação não encontrada
+                  value: "<div>N\u00e3o localizamos a transa\u00e7\u00e3o informada.</div>"
+        "400":
+          $ref: "#/components/responses/PagamentosRetornoInvalidStatus"
+  /pagamentos/checkout/status/{pk}/:
+    get:
+      tags: [pagamentos]
+      summary: Consultar status da transação
+      description: Endpoint HTTP usado no polling do checkout e integrações HTMX.
+      security: []
+      parameters:
+        - in: path
+          name: pk
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Status renderizado (HTML parcial), incluindo cenários pendente/falha sem redirecionamento HTMX
+          content:
+            text/html:
+              schema:
+                type: string
+              examples:
+                failed_no_redirect:
+                  summary: Transação falha sem redirecionamento HTMX
+                  value: "<div>Pagamento falhou</div>"
+        "204":
+          description: Redirecionamento HTMX para resultado de inscrição
+          headers:
+            HX-Redirect:
+              schema:
+                type: string
+              description: URL de redirecionamento HTMX quando inscrição vinculada for encontrada.
+        "400":
+          $ref: "#/components/responses/PagamentosStatusInvalidTransaction"
+  /pagamentos/relatorios/transacoes/:
+    get:
+      tags: [pagamentos]
+      summary: Revisão administrativa de transações
+      description: Lista de transações para revisão manual (somente staff).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+          description: Filtro opcional. Quando omitido, aplica revisão padrão (pending + failed).
+      responses:
+        "200":
+          description: Tela de revisão (HTML)
+          content:
+            text/html:
+              schema:
+                type: string
+        "403":
+          description: Requer usuário staff/autenticado
+  /pagamentos/relatorios/transacoes.csv:
+    get:
+      tags: [pagamentos]
+      summary: Exportar transações em CSV
+      description: Exportação administrativa das transações para análise externa.
+      responses:
+        "200":
+          description: CSV gerado
+          content:
+            text/csv:
+              schema:
+                type: string
+              examples:
+                sample:
+                  value: "data,valor,status,metodo\n2026-03-10T10:00:00,80.00,pending,pix"
+        "403":
+          description: Requer usuário staff/autenticado
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+  responses:
+    PagamentosWebhookMissingExternalId:
+      description: Payload inválido ou sem identificador externo
+      content:
+        text/plain:
+          schema:
+            type: string
+          examples:
+            missing_external_id:
+              value: "missing id"
+    PagamentosWebhookInvalidSignature:
+      description: Assinatura inválida
+      content:
+        text/plain:
+          schema:
+            type: string
+    PagamentosRetornoInvalidStatus:
+      description: Status de retorno inválido
+      content:
+        text/plain:
+          schema:
+            type: string
+          examples:
+            invalid_status:
+              value: "invalid status"
+    PagamentosStatusInvalidTransaction:
+      description: Transação inválida
+      content:
+        text/plain:
+          schema:
+            type: string
+          examples:
+            invalid_transaction:
+              value: "invalid transaction"
+  schemas:
+    AccountStatusResponse:
+      type: object
+      required: [detail, id, is_active]
+      properties:
+        detail:
+          type: string
+        id:
+          type: integer
+        is_active:
+          type: boolean
+    ApiErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+    ApiMessageResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+    PaymentWebhookPayload:
+      type: object
+      properties:
+        id:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+      example:
+        data:
+          id: "known-smoke-001"
+security:
+  - sessionAuth: []

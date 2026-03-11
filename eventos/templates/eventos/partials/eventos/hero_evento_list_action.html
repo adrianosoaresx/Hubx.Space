@@ -1,0 +1,28 @@
+{% load i18n lucide_icons %}
+<div class="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center md:justify-end">
+  {% if can_create_event %}
+    <a
+      href="{% url 'eventos:evento_novo' %}"
+      class="btn btn-primary flex items-center gap-2 text-[var(--text-inverse)] hover:text-[var(--text-inverse)] focus-visible:text-[var(--text-inverse)] active:text-[var(--text-inverse)]"
+    >
+      {% lucide 'plus' class='w-4 h-4' aria_hidden='true' %}
+      <span>{% trans 'Adicionar evento' %}</span>
+    </a>
+  {% endif %}
+  <a
+    href="{{ calendario_mensal_url }}"
+    class="btn btn-secondary flex items-center gap-2"
+  >
+    {% lucide 'calendar-days' class='w-4 h-4' aria_hidden='true' %}
+    <span>{% trans 'Calendário' %}</span>
+  </a>
+  {% if can_manage_briefing_templates %}
+    <a
+      href="{% url 'eventos:briefing_template_list' %}"
+      class="btn btn-secondary flex items-center gap-2"
+    >
+      {% lucide 'clipboard-list' class='w-4 h-4' aria_hidden='true' %}
+      <span>{% trans 'Modelos de Briefing' %}</span>
+    </a>
+  {% endif %}
+</div>

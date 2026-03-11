@@ -1,0 +1,14 @@
+name: Codex (dev ultra leve)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hello CI
+        run: echo "✅ Codex placeholder executado com sucesso (sem deps)"

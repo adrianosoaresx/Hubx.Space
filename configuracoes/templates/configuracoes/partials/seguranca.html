@@ -1,0 +1,101 @@
+{% load widget_tweaks i18n %}
+
+{% with target_id=hx_target_id|default:'settings-content' %}
+<!-- HTMX fragment: formulário de segurança recarregado dinamicamente -->
+<form
+  method="post"
+  hx-post="{{ request.path }}"
+  hx-target="#{{ target_id }}"
+  id="security-password-form"
+  class="space-y-6"
+>
+  {% csrf_token %}
+  {% if seguranca_form.non_field_errors %}
+    <div class="alert alert-error" role="alert">
+      <ul class="space-y-1">
+        {% for err in seguranca_form.non_field_errors %}
+          <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+  <input type="hidden" name="section" value="seguranca" />
+  <fieldset class="space-y-6">
+    <legend class="sr-only">{% trans 'Segurança da conta' %}</legend>
+    {% for field in seguranca_form %}
+      {% include '_forms/field.html' with field=field %}
+    {% endfor %}
+    <div class="flex items-center gap-2 text-left">
+      <input type="checkbox" id="toggle-security-passwords" class="form-checkbox text-[var(--primary)] focus:ring-[var(--primary)]">
+      <label for="toggle-security-passwords" class="text-sm text-[var(--text-primary)]">
+        {% trans 'Exibir senha' %}
+      </label>
+    </div>
+  </fieldset>
+  <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+    <button type="submit" aria-label="{% trans 'Salvar Alterações' %}" class="btn btn-primary">
+      {% trans 'Salvar Alterações' %}
+    </button>
+  </div>
+</form>
+
+<article class="card">
+  <div class="card-body space-y-4">
+    <h2 class="text-lg font-semibold text-[var(--text-primary)]">
+      {% trans 'Autenticação em duas etapas' %}
+    </h2>
+    <ul class="space-y-2 text-sm text-[var(--text-secondary)]">
+      <li>
+        {% if two_factor_enabled %}
+          {% trans 'Aplicativo autenticador: habilitado' %}
+        {% else %}
+          {% trans 'Aplicativo autenticador: desabilitado' %}
+        {% endif %}
+      </li>
+      <li>
+        {% if two_factor_email_enabled %}
+          {% trans 'Código por e-mail: habilitado' %}
+        {% else %}
+          {% trans 'Código por e-mail: desabilitado' %}
+        {% endif %}
+      </li>
+    </ul>
+    <div class="flex flex-wrap gap-3">
+      <a href="{% url 'tokens:ativar_2fa' %}" class="btn btn-primary">
+        {% trans 'Gerenciar 2FA' %}
+      </a>
+      {% if two_factor_enabled or two_factor_email_enabled %}
+        <a href="{% url 'tokens:desativar_2fa' %}" class="btn btn-danger">
+          {% trans 'Desativar 2FA' %}
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</article>
+
+<article class="card" aria-labelledby="delete-account-heading">
+  <div class="card-body space-y-3">
+    <h2 id="delete-account-heading" class="text-lg font-semibold text-[var(--text-primary)]">
+      {% trans 'Excluir conta' %}
+    </h2>
+    <p class="text-sm text-[var(--text-secondary)]">
+      {% blocktrans %}
+        A exclusão é permanente e remove todo o histórico da sua conta. Digite "EXCLUIR" para confirmar quando o modal for aberto.
+      {% endblocktrans %}
+    </p>
+    <div>
+      <a
+        href="{% url 'accounts:excluir_conta' %}"
+        hx-get="{% url 'accounts:delete_account' %}"
+        hx-target="#modal"
+        hx-trigger="click"
+        hx-swap="innerHTML"
+        hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+        class="btn btn-danger"
+      >
+        {% trans 'Excluir conta' %}
+      </a>
+    </div>
+  </div>
+</article>
+{% endwith %}

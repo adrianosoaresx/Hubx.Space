@@ -1,0 +1,517 @@
+{% load static i18n %}
+{% get_current_language as LANGUAGE_CODE %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}" dir="{% if LANGUAGE_BIDI %}rtl{% else %}ltr{% endif %}" class="no-js h-full bg-[var(--bg-primary)]">
+<head>
+  <script>
+    (function () {
+      const root = document.documentElement;
+      root.classList.remove('no-js');
+      root.classList.add('js');
+    })();
+  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="{% static 'manifest.json' %}">
+  <link rel="icon" href="{% static 'icons/favicon.ico' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'icons/favicon-32x32.png' %}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{% static 'icons/favicon-16x16.png' %}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{% static 'icons/apple-touch-icon.png' %}">
+  <link rel="manifest" href="{% static 'icons/site.webmanifest' %}">
+  <meta name="theme-color" content="">
+  <script>
+    (function () {
+      const stored = localStorage.getItem('tema');
+      if (stored === 'escuro') {
+        document.documentElement.classList.add('dark');
+      }
+
+      const langMatch = document.cookie.match(/(?:^|; )django_language=([^;]+)/);
+      if (langMatch) {
+        document.documentElement.setAttribute('lang', langMatch[1]);
+      }
+
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) {
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--primary-dark').trim();
+        if (color) metaTheme.setAttribute('content', color);
+      }
+    })();
+  </script>
+  <title>{% block title %}{% trans "HubX" %}{% endblock %}</title>
+  <script src="{% url 'javascript-catalog' %}"></script>
+
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <link rel="stylesheet" href="{% static 'tailwind.css' %}">
+  <link rel="stylesheet" href="{% static 'css/neural_backgrounds.css' %}">
+  <!-- Font Awesome removed: icons are now inline SVGs -->
+  {% block extra_css %}{% endblock %}
+  <style>
+    .preload { opacity: 0; }
+    .no-js .preload { opacity: 1; }
+    .js .js-warning { display: none; }
+    .no-js .js-warning { display: block; }
+  </style>
+</head>
+
+<body class="preload min-h-screen flex flex-col md:flex-row font-sans text-[var(--text-primary)]" data-is-authenticated="{{ request.user.is_authenticated|yesno:'true,false' }}">
+  <div class="js-warning hidden p-4 text-center bg-[var(--error)] text-[var(--text-inverse)]">
+    {% trans "Este site requer JavaScript. Por favor, habilite-o para continuar." %}
+  </div>
+  <a href="#main-content" class="sr-only focus:not-sr-only">{% trans "Pular para o conteúdo principal" %}</a>
+  {% if not hide_nav %}
+    {% include 'core/partials/sidebar.html' %}
+    <div id="sidebar-backdrop" class="sidebar-backdrop hidden md:hidden" aria-hidden="true"></div>
+  {% endif %}
+
+  <div id="content" class="flex flex-col flex-1 w-full md:w-auto transition-all ml-0 mobile-header-offset md:pt-0 {% if not hide_nav %}md:ml-64{% endif %}">
+    {% include 'core/partials/header.html' %}
+    {% block hero %}{% endblock %}
+
+    <main id="main-content" class="container mx-auto px-[2px] sm:px-6 py-6 flex-grow">
+
+      {% block content %}{% endblock %}
+    </main>
+    {% include '_partials/toasts.html' %}
+
+    {% include 'core/partials/footer.html' %}
+  </div>
+
+  {% if WEBSOCKETS_ENABLED %}
+  <script src="{% static 'notificacoes/js/push_socket.js' %}"></script>
+  {% endif %}
+  <script src="{% static 'js/vendor/htmx-1.9.12.min.js' %}"></script>
+  <script src="{% static 'js/vendor/json-enc.js' %}"></script>
+  <script src="{% static 'notificacoes/js/notification_dropdown.js' %}"></script>
+  <script src="{% static 'js/tabs.js' %}"></script>
+  <script type="module" src="{% static 'feed/js/share.js' %}"></script>
+  <script type="module" src="{% static 'feed/js/flag.js' %}"></script>
+  <script>
+    (function () {
+      function ensureToastContainer() {
+        let container = document.getElementById('messages');
+        if (container) {
+          return container;
+        }
+
+        container = document.createElement('ul');
+        container.id = 'messages';
+        container.className = 'fixed top-4 right-4 space-y-2 z-50';
+        document.body.appendChild(container);
+        return container;
+      }
+
+      function showToast(message) {
+        if (!message) {
+          return;
+        }
+
+        const container = ensureToastContainer();
+        const item = document.createElement('li');
+        item.className = 'px-4 py-2 rounded card bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow';
+        item.textContent = message;
+        container.appendChild(item);
+
+        setTimeout(() => {
+          item.remove();
+          if (!container.childElementCount) {
+            container.remove();
+          }
+        }, 4000);
+      }
+
+      document.body.addEventListener('htmx:responseError', function (evt) {
+        const xhr = evt.detail.xhr;
+        const status = xhr.status;
+
+        if (status < 400 || status >= 600) {
+          return;
+        }
+
+        const hxTriggerHeader = xhr.getResponseHeader('HX-Trigger');
+        if (hxTriggerHeader) {
+          return;
+        }
+
+        const messageByStatus = {
+          401: gettext('Sua sessão expirou. Faça login novamente para continuar.'),
+          403: gettext('Não foi possível concluir a ação. Recarregue a página e tente novamente.'),
+          500: gettext('Ocorreu um erro interno. Tente novamente em alguns instantes.')
+        };
+
+        const message = messageByStatus[status] || gettext('Não foi possível processar sua solicitação no momento. Tente novamente.');
+        showToast(message);
+
+        console.debug('[HTMX responseError]', {
+          status,
+          path: xhr.responseURL,
+          responseText: (xhr.responseText || '').slice(0, 500)
+        });
+      });
+
+      window.HubxToast = showToast;
+    })();
+  </script>
+  <script>
+    (function () {
+
+      function updateThemeMeta(theme) {
+        const metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (!metaTheme) {
+          return;
+        }
+
+        const variable = theme === 'escuro' ? '--primary-dark' : '--primary';
+        const color = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+        if (color) {
+          metaTheme.setAttribute('content', color);
+        }
+      }
+
+      function applyTheme(theme) {
+        document.documentElement.classList.toggle('dark', theme === 'escuro');
+        updateThemeMeta(theme);
+      }
+
+      function updatePressed(theme) {
+        document.querySelectorAll('[data-theme-option]').forEach(btn => {
+          const active = btn.getAttribute('data-theme-option') === theme;
+          btn.setAttribute('aria-pressed', String(active));
+        });
+      }
+
+      function setTheme(theme) {
+        localStorage.setItem('tema', theme);
+        applyTheme(theme);
+        updatePressed(theme);
+      }
+
+      function getTheme() {
+        return localStorage.getItem('tema') || 'claro';
+      }
+
+      const current = getTheme();
+      applyTheme(current);
+      updatePressed(current);
+
+      document.querySelectorAll('[data-theme-option]').forEach(btn => {
+        btn.addEventListener('click', () => setTheme(btn.getAttribute('data-theme-option')));
+      });
+
+      document.addEventListener('change', (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.id === 'id_tema') {
+          setTheme(target.value);
+        }
+      });
+
+      window.HubxSetTheme = setTheme;
+      window.HubxApplyTheme = applyTheme;
+      window.HubxGetTheme = getTheme;
+      window.HubxUpdateThemeButtons = updatePressed;
+    
+      const langMatch = document.cookie.match(/(?:^|; )django_language=([^;]+)/);
+      if (langMatch) {
+        localStorage.setItem('idioma', langMatch[1]);
+      }
+
+      const sidebarToggle = document.getElementById('sidebar-toggle');
+      const mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle');
+      const mobileSidebarClose = document.getElementById('mobile-sidebar-close');
+      const sidebar = document.getElementById('sidebar');
+      const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+      const content = document.getElementById('content');
+      if ((sidebarToggle || mobileSidebarToggle || mobileSidebarClose) && sidebar && content) {
+        const noop = () => {};
+        const mediaQuery = typeof window.matchMedia === 'function'
+          ? window.matchMedia('(min-width: 768px)')
+          : { matches: true, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop };
+        const sidebarLabels = Array.from(document.querySelectorAll('#sidebar .sidebar-label, #sidebar .sidebar-brand-label'));
+        const submenuToggles = Array.from(document.querySelectorAll('#sidebar [data-sidebar-submenu-toggle]'));
+        const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        const mobileToggleButtons = [mobileSidebarToggle, mobileSidebarClose].filter(Boolean);
+        const initialBodyOverflow = document.body.style.overflow;
+
+        const getSubmenu = (toggle) => {
+          const controls = toggle.getAttribute('aria-controls');
+          return controls ? document.getElementById(controls) : null;
+        };
+
+        submenuToggles.forEach((toggle) => {
+          const expanded = toggle.getAttribute('aria-expanded') === 'true';
+          toggle.dataset.sidebarExpanded = expanded ? 'true' : 'false';
+          const submenu = getSubmenu(toggle);
+          if (submenu && !expanded) {
+            submenu.classList.add('hidden');
+          }
+          toggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            const nextExpanded = toggle.dataset.sidebarExpanded !== 'true';
+            toggle.dataset.sidebarExpanded = nextExpanded ? 'true' : 'false';
+            const submenuEl = getSubmenu(toggle);
+            if (!sidebar.classList.contains('sidebar-collapsed') && submenuEl) {
+              toggle.setAttribute('aria-expanded', String(nextExpanded));
+              submenuEl.classList.toggle('hidden', !nextExpanded);
+            }
+          });
+        });
+
+        const syncSubmenus = (collapsed) => {
+          submenuToggles.forEach((toggle) => {
+            const submenu = getSubmenu(toggle);
+            if (!submenu) {
+              return;
+            }
+            const storedExpanded = toggle.dataset.sidebarExpanded === 'true';
+            if (collapsed) {
+              submenu.classList.add('hidden');
+              toggle.setAttribute('aria-expanded', 'false');
+            } else {
+              toggle.setAttribute('aria-expanded', String(storedExpanded));
+              submenu.classList.toggle('hidden', !storedExpanded);
+            }
+          });
+        };
+
+        const updateBackdropVisibility = () => {
+          if (!sidebarBackdrop) {
+            return;
+          }
+          if (mediaQuery.matches) {
+            sidebarBackdrop.classList.add('hidden');
+            sidebarBackdrop.setAttribute('aria-hidden', 'true');
+          } else {
+            const shouldShow = mobileOpen;
+            sidebarBackdrop.classList.toggle('hidden', !shouldShow);
+            sidebarBackdrop.setAttribute('aria-hidden', String(!shouldShow));
+          }
+        };
+
+        const setToggleExpanded = (toggle, expanded) => {
+          if (toggle) {
+            toggle.setAttribute('aria-expanded', String(expanded));
+          }
+        };
+
+        const updateAria = () => {
+          if (mediaQuery.matches) {
+            setToggleExpanded(sidebarToggle, !desktopCollapsed);
+            mobileToggleButtons.forEach((toggle) => setToggleExpanded(toggle, !desktopCollapsed));
+            sidebar.setAttribute('aria-hidden', 'false');
+          } else {
+            setToggleExpanded(sidebarToggle, mobileOpen);
+            mobileToggleButtons.forEach((toggle) => setToggleExpanded(toggle, mobileOpen));
+            sidebar.setAttribute('aria-hidden', String(!mobileOpen));
+          }
+        };
+
+        const getStoredDesktopState = () => {
+          const isAuthenticated = document.body.dataset.isAuthenticated === 'true';
+          if (!isAuthenticated) {
+            return true;
+          }
+
+          const stored = localStorage.getItem('sidebar');
+          if (stored === 'collapsed') {
+            return true;
+          }
+
+          if (stored === 'expanded') {
+            return false;
+          }
+
+          return false;
+        };
+        let desktopCollapsed = getStoredDesktopState();
+        let mobileOpen = false;
+        let bodyOverflowBeforeMobile = initialBodyOverflow;
+        let lastFocusedElement = null;
+
+        const updateSidebarLayout = () => {
+          const isDesktop = mediaQuery.matches;
+          const shouldShowMobileSidebar = !isDesktop && mobileOpen;
+          sidebar.classList.toggle('w-64', isDesktop && !desktopCollapsed);
+          sidebar.classList.toggle('md:w-64', isDesktop && !desktopCollapsed);
+          sidebar.classList.toggle('w-16', isDesktop && desktopCollapsed);
+          sidebar.classList.toggle('md:w-16', isDesktop && desktopCollapsed);
+          sidebar.classList.toggle('sidebar-collapsed', isDesktop && desktopCollapsed);
+          sidebar.classList.toggle('sidebar-open', isDesktop || shouldShowMobileSidebar);
+          sidebar.classList.toggle('sidebar-closed', !isDesktop && !mobileOpen);
+          sidebarLabels.forEach((el) => {
+            el.classList.toggle('hidden', isDesktop && desktopCollapsed);
+          });
+          syncSubmenus(isDesktop && desktopCollapsed);
+
+          if (isDesktop) {
+            sidebar.classList.remove('mobile-open');
+          } else {
+            sidebar.classList.toggle('mobile-open', mobileOpen);
+          }
+
+          document.body.classList.toggle('sidebar-mobile-open', shouldShowMobileSidebar);
+
+          updateAria();
+          updateBackdropVisibility();
+
+          const applyContentOffset = () => {
+            if (!content) {
+              return;
+            }
+            if (isDesktop) {
+              const sidebarWidth = sidebar.getBoundingClientRect().width;
+              content.style.marginLeft = `${sidebarWidth}px`;
+            } else {
+              content.style.marginLeft = '';
+            }
+          };
+
+          if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(applyContentOffset);
+          } else {
+            applyContentOffset();
+          }
+        };
+
+        const setDesktopCollapsed = (collapsed) => {
+          desktopCollapsed = collapsed;
+          localStorage.setItem('sidebar', collapsed ? 'collapsed' : 'expanded');
+          updateSidebarLayout();
+        };
+
+        const setMobileOpen = (open, { skipFocus = false } = {}) => {
+          if (!mediaQuery.matches && open) {
+            const activeElement = document.activeElement;
+            if (activeElement instanceof HTMLElement) {
+              lastFocusedElement = activeElement;
+            }
+            bodyOverflowBeforeMobile = document.body.style.overflow;
+          }
+
+          mobileOpen = open;
+          updateSidebarLayout();
+
+          if (mediaQuery.matches) {
+            if (!open) {
+              document.body.style.overflow = bodyOverflowBeforeMobile;
+            }
+          } else {
+            document.body.style.overflow = open ? 'hidden' : bodyOverflowBeforeMobile;
+          }
+
+          if (skipFocus || mediaQuery.matches) {
+            return;
+          }
+
+          if (open) {
+            requestAnimationFrame(() => {
+              const focusTarget = sidebar.querySelector(focusableSelector);
+              if (focusTarget instanceof HTMLElement) {
+                focusTarget.focus();
+              }
+            });
+          } else if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+            lastFocusedElement.focus();
+            lastFocusedElement = null;
+          }
+        };
+
+        const handleMediaChange = () => {
+          if (mediaQuery.matches) {
+            desktopCollapsed = getStoredDesktopState();
+            if (mobileOpen) {
+              setMobileOpen(false, { skipFocus: true });
+            } else {
+              updateSidebarLayout();
+            }
+          } else {
+            updateSidebarLayout();
+          }
+        };
+
+        updateSidebarLayout();
+
+        const handleToggleClick = () => {
+          if (mediaQuery.matches) {
+            setDesktopCollapsed(!desktopCollapsed);
+          } else {
+            setMobileOpen(!mobileOpen);
+          }
+        };
+
+        if (sidebarToggle) {
+          sidebarToggle.addEventListener('click', handleToggleClick);
+        }
+
+        mobileToggleButtons.forEach((toggle) => {
+          toggle.addEventListener('click', handleToggleClick);
+        });
+
+        if (sidebarBackdrop) {
+          sidebarBackdrop.addEventListener('click', () => {
+            setMobileOpen(false);
+          });
+        }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && mobileOpen && !mediaQuery.matches) {
+          setMobileOpen(false);
+        }
+      });
+
+        if (typeof mediaQuery.addEventListener === 'function') {
+          mediaQuery.addEventListener('change', handleMediaChange);
+        } else if (typeof mediaQuery.addListener === 'function') {
+          mediaQuery.addListener(handleMediaChange);
+        }
+      }
+      document.body.classList.remove('preload');
+    })();
+  </script>
+  <script>
+    (function () {
+      function handleModalClose() {
+        const modalContainer = document.getElementById('modal');
+        if (!modalContainer) {
+          return;
+        }
+        modalContainer.innerHTML = '';
+        if (window.HubxModalTrigger && typeof window.HubxModalTrigger.focus === 'function') {
+          window.HubxModalTrigger.focus();
+          window.HubxModalTrigger = null;
+        }
+      }
+
+      function ensureModalContainer() {
+        if (document.getElementById('modal')) {
+          return;
+        }
+        const container = document.createElement('div');
+        container.id = 'modal';
+        container.setAttribute('role', 'presentation');
+        container.setAttribute('aria-live', 'polite');
+        document.body.appendChild(container);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensureModalContainer, { once: true });
+      } else {
+        ensureModalContainer();
+      }
+
+      document.addEventListener('modal:close', handleModalClose);
+    })();
+  </script>
+  {% block extra_js %}
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "{{ ONESIGNAL_APP_ID|default:'107f7e3e-2720-46ac-9068-d595d762dda4' }}",
+      });
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+  {% endblock %}
+</body></html>

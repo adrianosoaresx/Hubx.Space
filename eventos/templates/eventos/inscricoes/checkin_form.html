@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load i18n static %}
+
+{% block title %}{{ title|default:_('Check-in do evento') }}{% endblock %}
+
+{% block hero %}{% include 'eventos/componentes/hero_evento.html' with evento=evento title=title subtitle=subtitle %}{% endblock %}
+
+{% block content %}
+  
+    <article class="card">
+      <div class="card-header">
+        <h2 class="text-xl font-semibold">{{ title|default:_('Check-in do evento') }}</h2>
+      </div>
+      <div class="card-body space-y-6">
+        <form method="post" action="{% url 'eventos:inscricao_checkin' inscricao.id %}" id="checkin-form" class="space-y-4"
+              data-success-message="{% trans 'Check-in realizado com sucesso!' %}"
+              data-no-camera-message="{% trans 'Nenhuma câmera encontrada' %}"
+              data-camera-denied-message="{% trans 'Permissão da câmera negada' %}"
+              data-camera-error-message="{% trans 'Não foi possível acessar a câmera' %}"
+              data-checkin-error-message="{% trans 'Erro ao realizar check-in' %}">
+          {% csrf_token %}
+          <div>
+            <label for="codigo" class="block text-sm font-medium">{% trans "Código do check-in" %}</label>
+            <input type="text" id="codigo" name="codigo" class="form-input w-full" placeholder="{% trans 'Escaneie ou digite o código' %}" required>
+          </div>
+          <div id="feedback" class="text-sm" role="status" aria-live="polite"></div>
+          <div id="reader" class="w-full min-h-[240px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4"></div>
+          <div class="text-right">
+            <button type="submit" class="btn btn-primary" aria-label="{% trans 'Confirmar presença' %}">{% trans 'Confirmar presença' %}</button>
+          </div>
+        </form>
+      </div>
+    </article>
+  
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script src="{% static 'js/cdn-script-loader.js' %}" defer></script>
+  <script src="{% static 'eventos/js/checkin-cdn-loader.js' %}" defer></script>
+  <script src="{% static 'eventos/js/checkin-form.js' %}" defer></script>
+{% endblock %}

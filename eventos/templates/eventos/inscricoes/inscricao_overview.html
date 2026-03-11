@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load i18n l10n %}
+
+{% block title %}{{ title|default:_('Inscrição') }}{% endblock %}
+
+{% block hero %}{% include 'eventos/componentes/hero_evento_detail.html' with evento=evento %}{% endblock %}
+
+{% block content %}
+  <div class="space-y-6">
+    <article class="card overflow-hidden">
+      <header class="card-header flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="space-y-2">
+          <p class="text-sm font-medium text-[var(--text-secondary)]">{% trans "Visão geral da inscrição" %}</p>
+          <h2 class="text-2xl font-semibold text-[var(--text-primary)]">{{ evento.titulo }}</h2>
+          {% if evento.subtitulo %}
+            <p class="text-[var(--text-secondary)]">{{ evento.subtitulo }}</p>
+          {% endif %}
+        </div>
+
+        {% if evento_pago %}
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <a href="{{ pix_checkout_url }}" class="btn btn-primary" role="button">
+              {% trans "Pagar via Pix" %}
+            </a>
+            <a href="{{ faturamento_checkout_url }}" class="btn btn-secondary" role="button">
+              {% trans "Faturar" %}
+            </a>
+          </div>
+        {% else %}
+          <form method="post" action="{{ cta_url }}" class="inline-flex">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">
+              {{ cta_label }}
+            </button>
+          </form>
+        {% endif %}
+      </header>
+
+      <div class="card-body grid gap-6 lg:grid-cols-2">
+        {% if evento.cover %}
+          <div class="card h-full overflow-hidden">
+            <div class="flex w-full items-center justify-center bg-[var(--surface-secondary)] p-4">
+              <img
+                src="{{ evento.cover.url }}"
+                alt="{{ evento.titulo }}"
+                class="max-h-80 w-full object-contain"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        {% endif %}
+        <div class="card h-full">
+          <div class="card-body space-y-6">
+            <div class="flex flex-col gap-4 rounded-lg bg-[var(--surface-secondary)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="space-y-1">
+                <p class="text-sm text-[var(--text-secondary)]">{% trans "Valor" %}</p>
+                {% if evento_pago %}
+                  <p class="text-xl font-semibold text-[var(--text-primary)]">{{ valor_evento_usuario|localize }}</p>
+                {% else %}
+                  <p class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Evento gratuito" %}</p>
+                {% endif %}
+              </div>
+              {% if evento_pago %}
+                <span class="rounded-full bg-primary-50 px-3 py-1 text-sm font-semibold text-primary-600">
+                  {% trans "Pagamento necessário" %}
+                </span>
+              {% else %}
+                <span class="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
+                  {% trans "Sem custo" %}
+                </span>
+              {% endif %}
+            </div>
+
+            {% if metodo_pagamento_field %}
+              <section class="space-y-2">
+                <p class="text-sm font-medium text-[var(--text-primary)]">{% trans "Metodos de pagamento" %}</p>
+                <p class="text-sm text-[var(--text-secondary)]">{% trans "Confira abaixo as formas disponíveis para concluir seu pagamento." %}</p>
+                <div class="flex flex-wrap gap-2">
+                  {% for value, label in metodo_pagamento_field.field.choices %}
+                    {% if value and label != "Faturar em 2x" and label != "Faturar em 3x" %}
+                      <span class="inline-flex items-center rounded-full bg-[var(--surface-secondary)] px-3 py-1 text-sm font-semibold text-[var(--text-primary)]">
+                        {% if label == "Fatura à vista" %}
+                          Faturar
+                        {% else %}
+                          {{ label }}
+                        {% endif %}
+                      </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            <dl class="grid gap-4 sm:grid-cols-2">
+              <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                <dt class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">{% trans "Início" %}</dt>
+                <dd class="text-sm font-medium text-[var(--text-primary)]">{{ evento.data_inicio|date:'SHORT_DATETIME_FORMAT' }}</dd>
+              </div>
+              <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                <dt class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">{% trans "Fim" %}</dt>
+                <dd class="text-sm font-medium text-[var(--text-primary)]">{{ evento.data_fim|date:'SHORT_DATETIME_FORMAT' }}</dd>
+              </div>
+              {% if evento.local %}
+                <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2 sm:col-span-2">
+                  <dt class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">{% trans "Local" %}</dt>
+                  <dd class="text-sm font-medium text-[var(--text-primary)]">{{ evento.local }}</dd>
+                </div>
+              {% endif %}
+            </dl>
+
+            {% if evento.descricao %}
+              <section class="space-y-2">
+                <h3 class="text-lg font-semibold text-[var(--text-primary)]">{% trans "Informações" %}</h3>
+                <p class="whitespace-pre-line text-[var(--text-secondary)]">{{ evento.descricao }}</p>
+              </section>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if evento_pago %}
+        <footer class="card-footer flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <a href="{{ pix_checkout_url }}" class="btn btn-primary" role="button">{% trans "Pagar via Pix" %}</a>
+          <a href="{{ faturamento_checkout_url }}" class="btn btn-secondary" role="button">{% trans "Faturar" %}</a>
+        </footer>
+      {% endif %}
+    </article>
+  </div>
+{% endblock %}

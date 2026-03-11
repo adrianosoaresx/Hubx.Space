@@ -1,0 +1,24 @@
+{% load i18n %}
+{% if is_htmx %}
+  <p
+    id="inscritos-summary"
+    class="text-sm text-[var(--text-secondary)]"
+    hx-swap-oob="true"
+  >
+    {% blocktrans count count=inscritos_total_count %}
+      {{ count }} inscrito confirmado
+    {% plural %}
+      {{ count }} inscritos confirmados
+    {% endblocktrans %}
+    {% if vagas_disponiveis is not None %}
+      ·
+      {% blocktrans count vagas=vagas_disponiveis %}
+        {{ vagas }} vaga disponível
+      {% plural %}
+        {{ vagas }} vagas disponíveis
+      {% endblocktrans %}
+    {% endif %}
+  </p>
+{% endif %}
+{% include 'eventos/partials/inscritos_carousel.html' with page=inscritos_page_obj inscricoes=inscricoes_confirmadas search_term=inscritos_search_query fetch_url=inscritos_carousel_fetch_url evento_id=inscritos_evento_id|default:object.pk pode_gerenciar_inscricoes=pode_gerenciar_inscricoes object=object evento=evento %}
+

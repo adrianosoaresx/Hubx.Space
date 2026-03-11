@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load i18n tz lucide_icons %}
+
+{% block title %}{% trans "Bem-vindo ao HubX" %}{% endblock %}
+
+{% block hero %}
+  {% include 'core/componentes/hero.html' with title=_('Junte-se à comunidade Hubx.space') subtitle=_('Plataforma colaborativa que conecta organizações e pessoas.') neural_background='home' %}
+{% endblock %}
+
+{% block content %}
+<div class="py-12 text-center my-8 px-4">
+  {% if user.is_authenticated %}
+  <div class="flex justify-center gap-4">
+    <a href="{% url 'feed:listar' %}" class="btn btn-primary card">{% trans "Ver Feed" %}</a>
+    <a href="{% url 'eventos:calendario' %}" class="btn btn-secondary">{% trans "Ver Eventos" %}</a>
+  </div>
+  {% else %}
+  <div class="flex justify-center gap-4">
+    <a href="{% url 'tokens:token' %}" class="btn btn-primary card">{% trans "Criar conta" %}</a>
+    <a href="{% url 'accounts:login' %}" class="btn btn-secondary">{% trans "Entrar" %}</a>
+  </div>
+  {% endif %}
+</div>
+
+
+<footer class="py-6 text-center text-sm text-[var(--text-tertiary)]">
+  &copy; {{ now|date:"Y" }} {% trans "Hubx" %}
+</footer>
+{% endblock %}

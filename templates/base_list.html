@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block hero %}
+  {% include 'core/componentes/hero.html' with title=title subtitle=subtitle breadcrumb=breadcrumb actions=actions %}
+{% endblock %}
+
+{% block content %}
+  {% if kpis %}{{ kpis|safe }}{% endif %}
+  <section class="card-grid">
+    {% block list_items %}
+        {# Exemplo:
+          {% for obj in object_list %}
+            {% include "_partials/cards/card_generic.html" with title=obj.nome subtitle=obj.descricao href=obj.get_absolute_url %}
+          {% endfor %}
+        #}
+    {% endblock %}
+  </section>
+{% endblock %}

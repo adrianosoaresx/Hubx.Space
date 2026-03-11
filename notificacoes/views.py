@@ -1,0 +1,351 @@
+from __future__ import annotations
+
+import logging
+from urllib.parse import urlparse
+
+from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Count
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.html import format_html
+from django.utils.translation import gettext_lazy as _
+
+from core.utils import resolve_back_href
+from apps.backend.app.modules.notificacoes.application.dropdown_targets import (
+    resolve_dropdown_target_url,
+)
+
+from .forms import (
+    HistoricoNotificacaoFilterForm,
+    MetricsFilterForm,
+    NotificationLogFilterForm,
+    NotificationTemplateForm,
+)
+from .models import (
+    Canal,
+    Frequencia,
+    HistoricoNotificacao,
+    NotificationLog,
+    NotificationStatus,
+    NotificationTemplate,
+)
+from .permissions import notifications_permission_required
+
+logger = logging.getLogger(__name__)
+DROPDOWN_LIMIT = 5
+
+
+@login_required
+def notificacoes_list(request):
+    push_logs = (
+        NotificationLog.objects.select_related("template")
+        .filter(
+            user=request.user,
+            canal__in=[Canal.PUSH, Canal.APP],
+            status=NotificationStatus.ENVIADA,
+        )
+        .order_by("-data_envio")
+    )
+
+    context = {"push_logs": push_logs}
+    return render(request, "notificacoes/notificacoes_list.html", context)
+
+
+@login_required
+def push_notification_count(request):
+    context = {
+        "push_notification_pending_count": NotificationLog.objects.filter(
+            user=request.user,
+            canal__in=[Canal.PUSH, Canal.APP],
+            status=NotificationStatus.ENVIADA,
+        ).count()
+    }
+    return render(request, "notificacoes/partials/push_notification_badge.html", context)
+
+
+@login_required
+def notifications_dropdown(request):
+    logs = list(
+        NotificationLog.objects.select_related("template")
+        .filter(
+            user=request.user,
+            canal__in=[Canal.PUSH, Canal.APP],
+            status=NotificationStatus.ENVIADA,
+        )
+        .order_by("-data_envio", "-created_at")[:DROPDOWN_LIMIT]
+    )
+
+    default_target_url = reverse("notificacoes:notificacoes-list")
+
+    for log in logs:
+        context = log.context or {}
+        template_code = getattr(log.template, "codigo", "") or ""
+        log.target_url = resolve_dropdown_target_url(
+            template_code=template_code,
+            context=context,
+            default_target_url=default_target_url,
+            feed_target_builder=lambda post_id: (
+                f"{reverse('feed:post_detail', kwargs={'pk': post_id})}#post-{post_id}"
+            ),
+        )
+
+    context = {"logs": logs}
+    return render(request, "notificacoes/partials/notifications_dropdown.html", context)
+
+
+@login_required
+@notifications_permission_required("notificacoes.view_notificationtemplate")
+def list_templates(request):
+    templates = NotificationTemplate.objects.all().order_by("-created_at")
+    paginator = Paginator(templates, 20)
+    templates_page = paginator.get_page(request.GET.get("page"))
+    context = {
+        "templates_page": templates_page,
+        "page_obj": templates_page,
+    }
+    return render(request, "notificacoes/templates_list.html", context)
+
+
+@login_required
+@notifications_permission_required("notificacoes.change_notificationtemplate")
+def toggle_template(request, codigo: str):
+    template = get_object_or_404(NotificationTemplate, codigo=codigo)
+    if request.method == "POST":
+        template.ativo = not template.ativo
+        template.save(update_fields=["ativo"])
+        if template.ativo:
+            messages.success(request, _("Template ativado com sucesso."))
+        else:
+            messages.success(request, _("Template desativado com sucesso."))
+    return redirect("notificacoes:templates_list")
+
+
+@login_required
+@notifications_permission_required("notificacoes.add_notificationtemplate")
+def create_template(request):
+    if request.method == "POST":
+        form = NotificationTemplateForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, _("Template criado com sucesso."))
+            settings_notifications_url = f"{reverse('configuracoes:configuracoes')}?panel=notificacoes#notificacoes"
+            return redirect(settings_notifications_url)
+    else:
+        form = NotificationTemplateForm()
+
+    panel_slug = request.GET.get("panel", "notificacoes")
+    settings_notifications_url = f"{reverse('configuracoes:configuracoes')}?panel={panel_slug}#notificacoes"
+    fallback_url = settings_notifications_url
+    back_href = resolve_back_href(request, fallback=fallback_url)
+    referer_path = urlparse(request.META.get("HTTP_REFERER", "")).path
+    if referer_path == request.path or f"panel={panel_slug}" not in back_href:
+        back_href = fallback_url
+    context = {
+        "form": form,
+        "back_href": back_href,
+        "back_component_config": {
+            "href": back_href,
+            "fallback_href": fallback_url,
+        },
+    }
+    return render(request, "notificacoes/template_form.html", context)
+
+
+@login_required
+@notifications_permission_required("notificacoes.change_notificationtemplate")
+def edit_template(request, codigo: str):
+    template = get_object_or_404(NotificationTemplate, codigo=codigo)
+    if request.method == "POST":
+        form = NotificationTemplateForm(request.POST, instance=template)
+        if form.is_valid():
+            form.save()
+            messages.success(request, _("Template atualizado com sucesso."))
+            settings_notifications_url = f"{reverse('configuracoes:configuracoes')}?panel=notificacoes#notificacoes"
+            return redirect(settings_notifications_url)
+    else:
+        form = NotificationTemplateForm(instance=template)
+
+    panel_slug = request.GET.get("panel", "notificacoes")
+    settings_notifications_url = f"{reverse('configuracoes:configuracoes')}?panel={panel_slug}#notificacoes"
+    fallback_url = settings_notifications_url
+    back_href = resolve_back_href(request, fallback=fallback_url)
+    referer_path = urlparse(request.META.get("HTTP_REFERER", "")).path
+    if referer_path == request.path or f"panel={panel_slug}" not in back_href:
+        back_href = fallback_url
+    context = {
+        "form": form,
+        "template": template,
+        "back_href": back_href,
+        "back_component_config": {
+            "href": back_href,
+            "fallback_href": fallback_url,
+        },
+    }
+    return render(request, "notificacoes/template_form.html", context)
+
+
+@login_required
+@staff_member_required
+def list_logs(request):
+    form = NotificationLogFilterForm(request.GET or None)
+    logs = NotificationLog.objects.select_related("user", "template").order_by("-data_envio")
+
+    if form.is_valid():
+        inicio = form.cleaned_data.get("inicio")
+        fim = form.cleaned_data.get("fim")
+        canal = form.cleaned_data.get("canal")
+        status = form.cleaned_data.get("status")
+        template = form.cleaned_data.get("template")
+
+        if inicio:
+            logs = logs.filter(data_envio__date__gte=inicio)
+        if fim:
+            logs = logs.filter(data_envio__date__lte=fim)
+        if canal in Canal.values:
+            logs = logs.filter(canal=canal)
+        if status in NotificationStatus.values:
+            logs = logs.filter(status=status)
+        if template:
+            logs = logs.filter(template=template)
+
+    paginator = Paginator(logs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    context = {"logs": page_obj, "form": form}
+    template_name = (
+        "notificacoes/logs_table.html" if request.headers.get("HX-Request") else "notificacoes/logs_list.html"
+    )
+    return render(request, template_name, context)
+
+
+@login_required
+def historico_notificacoes(request):
+    historico = HistoricoNotificacao.objects.filter(user=request.user)
+    form = HistoricoNotificacaoFilterForm(request.GET or None)
+
+    if form.is_valid():
+        inicio = form.cleaned_data.get("inicio")
+        fim = form.cleaned_data.get("fim")
+        canal = form.cleaned_data.get("canal")
+        frequencia = form.cleaned_data.get("frequencia")
+        ordenacao = form.cleaned_data.get("ordenacao") or "-enviado_em"
+
+        if inicio:
+            historico = historico.filter(enviado_em__date__gte=inicio)
+        if fim:
+            historico = historico.filter(enviado_em__date__lte=fim)
+        if canal in Canal.values:
+            historico = historico.filter(canal=canal)
+        if frequencia in Frequencia.values:
+            historico = historico.filter(frequencia=frequencia)
+        if ordenacao in ["enviado_em", "-enviado_em"]:
+            historico = historico.order_by(ordenacao)
+    else:
+        historico = historico.order_by("-enviado_em")
+
+    paginator = Paginator(historico, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    context = {"historicos": page_obj, "form": form}
+    template_name = (
+        "notificacoes/historico_table.html" if request.headers.get("HX-Request") else "notificacoes/historico_list.html"
+    )
+    return render(request, template_name, context)
+
+
+@login_required
+@notifications_permission_required("notificacoes.delete_notificationtemplate")
+def delete_template(request, codigo: str):
+    template = get_object_or_404(NotificationTemplate, codigo=codigo)
+
+    if request.method == "POST":
+        if NotificationLog.objects.filter(template=template).exists():
+            messages.error(
+                request,
+                _("Template em uso; não é possível removê-lo. Considere desativá-lo."),
+            )
+        else:
+            template.delete()
+            messages.success(request, _("Template excluído com sucesso."))
+        if request.headers.get("HX-Request"):
+            response = HttpResponse(status=204)
+            response["HX-Redirect"] = reverse("notificacoes:templates_list")
+            return response
+        return redirect("notificacoes:templates_list")
+
+    fallback_url = reverse("notificacoes:templates_list")
+    back_href = resolve_back_href(request, fallback=fallback_url)
+    if request.headers.get("HX-Request"):
+        form_action = reverse("notificacoes:template_delete", args=[template.codigo])
+        modal_context = {
+            "template": template,
+            "modal_identifier": template.pk or template.codigo,
+            "titulo": _("Confirmar exclusão"),
+            "mensagem": _("Esta ação não poderá ser desfeita."),
+            "pergunta": format_html(
+                _("Tem certeza que deseja excluir o template <strong>{codigo}</strong>?"),
+                codigo=template.codigo,
+            ),
+            "submit_label": _("Excluir"),
+            "form_action": form_action,
+        }
+        return render(
+            request,
+            "notificacoes/partials/template_delete_modal.html",
+            modal_context,
+        )
+
+    context = {
+        "template": template,
+        "back_href": back_href,
+        "back_component_config": {
+            "href": back_href,
+            "fallback_href": fallback_url,
+        },
+        "cancel_component_config": {
+            "href": back_href,
+            "fallback_href": fallback_url,
+            "aria_label": _("Cancelar exclusão"),
+        },
+    }
+    return render(
+        request,
+        "notificacoes/template_confirm_delete.html",
+        context,
+    )
+
+
+@login_required
+@staff_member_required
+def metrics_dashboard(request):
+    logs = NotificationLog.objects.filter(data_envio__isnull=False)
+    form = MetricsFilterForm(request.GET or None)
+
+    if form.is_valid():
+        inicio = form.cleaned_data.get("inicio")
+        fim = form.cleaned_data.get("fim")
+
+        if inicio:
+            logs = logs.filter(data_envio__date__gte=inicio)
+        if fim:
+            logs = logs.filter(data_envio__date__lte=fim)
+    total_por_canal = {
+        item["canal"]: item["total"]
+        for item in logs.filter(status=NotificationStatus.ENVIADA).values("canal").annotate(total=Count("id"))
+    }
+    falhas_por_canal = {
+        item["canal"]: item["total"]
+        for item in logs.filter(status=NotificationStatus.FALHA).values("canal").annotate(total=Count("id"))
+    }
+    templates_total = NotificationTemplate.objects.filter(ativo=True).count()
+    context = {
+        "total_por_canal": total_por_canal,
+        "falhas_por_canal": falhas_por_canal,
+        "templates_total": templates_total,
+        "form": form,
+    }
+    logger.info("metrics_view", extra={"user": request.user.id})
+    return render(request, "notificacoes/metrics.html", context)

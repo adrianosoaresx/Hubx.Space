@@ -1,0 +1,2975 @@
+import calendar
+import json
+from collections import Counter
+from types import SimpleNamespace
+from decimal import Decimal
+from datetime import date, timedelta
+from io import BytesIO
+from typing import Any
+
+from django import forms
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import Q, Count
+from django.http import (
+    Http404,
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseForbidden,
+    HttpResponseNotAllowed,
+    HttpResponseServerError,
+    JsonResponse,
+)
+from django.shortcuts import get_object_or_404, redirect
+from django.template.loader import render_to_string
+from django.template.response import TemplateResponse
+from django.urls import reverse, reverse_lazy
+from django.utils import timezone
+from django.utils.html import format_html
+from django.utils.http import urlencode
+from django.utils.translation import gettext_lazy as _
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
+
+try:  # pragma: no cover - fallback for optional dependency
+    from xhtml2pdf import pisa
+except ImportError:  # pragma: no cover - handled at runtime
+    pisa = None
+
+from accounts.models import UserType
+from core.permissions import (
+    AdminOperatorOrCoordinatorRequiredMixin,
+    AdminOrOperatorRequiredMixin,
+    GerenteRequiredMixin,
+    NoSuperadminMixin,
+    no_superadmin_required,
+)
+from core.utils import resolve_back_href
+from notificacoes.services.email_client import send_email
+from pagamentos.forms import PixCheckoutForm
+from pagamentos.models import Transacao
+from pagamentos.providers import MercadoPagoProvider
+from apps.backend.app.modules.eventos.application.visibility import (
+    can_manage_event_portfolio as app_can_manage_event_portfolio,
+    can_view_event_subscribers as app_can_view_event_subscribers,
+    get_nucleos_coordenacao_consultoria_ids as app_get_nucleos_coordenacao_consultoria_ids,
+    get_tipo_usuario as app_get_tipo_usuario,
+    has_restricted_event_access as app_has_restricted_event_access,
+    is_guest_user as app_is_guest_user,
+    is_user_event_coordinator as app_is_user_event_coordinator,
+    resolve_planejamento_permissions as app_resolve_planejamento_permissions,
+)
+from apps.backend.app.modules.eventos.application.checkout_flow import (
+    build_checkout_inscricao_updates,
+    build_checkout_profile_data,
+    build_initial_checkout_data,
+    can_user_access_checkout,
+    is_checkout_required,
+    is_evento_gratuito,
+    resolve_metodo_pagamento,
+    should_block_checkout_without_confirmation,
+    should_confirm_checkout_inscricao,
+    should_redirect_after_checkout_approval,
+)
+from apps.backend.app.modules.eventos.application.checkin_rules import (
+    build_checkin_form_context,
+    build_checkin_success_payload,
+    checkin_requires_post,
+    is_inscricao_confirmada,
+    user_can_access_checkin_form,
+    user_can_execute_checkin,
+    validate_checkin_codigo,
+)
+from apps.backend.app.modules.eventos.application.inscricao_result import (
+    build_inscricao_result_context,
+)
+from apps.backend.app.modules.eventos.application.public_invites import (
+    create_public_invite_token,
+)
+from apps.backend.app.modules.eventos.application.public_invite_flow import (
+    build_login_redirect_url,
+    build_public_invite_email_context,
+    build_public_invite_email_subject,
+    build_public_invite_info_context,
+    build_public_invite_page_context,
+    build_register_url,
+)
+from apps.backend.app.modules.eventos.application.budget_rules import (
+    apply_orcamento_changes,
+    build_orcamento_success_payload,
+    parse_orcamento_payload,
+    should_persist_orcamento_changes,
+    user_can_manage_evento_orcamento,
+)
+from apps.backend.app.modules.eventos.application.day_listing import (
+    build_eventos_por_dia_context,
+    get_eventos_por_dia_template,
+    parse_dia_iso,
+    user_can_view_eventos_por_dia,
+)
+from apps.backend.app.modules.eventos.application.engagement_rules import (
+    can_cancelar_inscricao,
+    can_user_rate_event,
+    parse_feedback_nota,
+)
+from apps.backend.app.modules.eventos.application.inscritos_reporting import (
+    prepare_inscricoes_for_report,
+    resolve_participante_nome as app_resolve_participante_nome,
+)
+from apps.backend.app.modules.eventos.application.briefing_flow import (
+    apply_briefing_template_selection,
+    build_briefing_select_initial,
+    get_evento_briefing,
+)
+from apps.backend.app.modules.eventos.application.event_write_policy import (
+    apply_coordinator_nucleo_scope,
+    build_evento_change_details,
+    ensure_coordinator_can_use_nucleo,
+    ensure_user_can_create_evento,
+)
+from apps.backend.app.modules.eventos.application.inscricao_management import (
+    build_inscricao_form_kwargs,
+    build_inscricao_update_context,
+    build_inscricao_update_queryset,
+    can_toggle_pagamento_validacao,
+    resolve_inscricao_valor_pago,
+    toggle_pagamento_validado_status,
+)
+from apps.backend.app.modules.eventos.application.event_detail_context import (
+    build_financeiro_summary,
+    build_inscricao_status_summary,
+    resolve_event_management_permissions,
+    sort_inscricoes_financeiro,
+)
+from apps.backend.app.modules.eventos.application.portfolio_context import (
+    resolve_portfolio_navigation_state,
+    resolve_portfolio_query,
+    resolve_portfolio_selection_state,
+    resolve_portfolio_show_form,
+)
+from apps.backend.app.modules.eventos.application.invite_management import (
+    build_convite_create_context,
+    can_user_manage_convites,
+)
+
+from .forms import (
+    BriefingEventoForm,
+    BriefingTemplateForm,
+    ConviteEventoForm,
+    EventoForm,
+    EventoMediaForm,
+    EventoPortfolioFilterForm,
+    FeedbackForm,
+    InscricaoEventoForm,
+    PublicInviteEmailForm,
+    get_coordenador_nucleo_ids,
+)
+from .models import (
+    BriefingEvento,
+    BriefingTemplate,
+    Convite,
+    Evento,
+    EventoLog,
+    EventoMidia,
+    FeedbackNota,
+    InscricaoEvento,
+)
+from .querysets import filter_eventos_por_usuario
+from .services.inscricao import processar_inscricao_evento
+
+User = get_user_model()
+
+EVENTO_CAROUSEL_PAGE_SIZE = 6
+MINHAS_INSCRICOES_ALLOWED_TYPES = {
+    UserType.ASSOCIADO.value,
+    UserType.COORDENADOR.value,
+    UserType.NUCLEADO.value,
+    UserType.CONVIDADO.value,
+    UserType.CONSULTOR.value,
+}
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _queryset_por_organizacao(request):
+    qs = Evento.objects.prefetch_related("inscricoes").all()
+    return filter_eventos_por_usuario(qs, request.user)
+
+
+def _get_tipo_usuario(user) -> str | None:
+    return app_get_tipo_usuario(user)
+
+
+def _is_guest_user(user) -> bool:
+    return app_is_guest_user(user)
+
+
+def _criar_token_convite_publico(evento: Evento, email: str):
+    return create_public_invite_token(evento=evento, email=email, user_model=User)
+
+
+def _portfolio_counts(medias) -> dict[str, int]:
+    medias_list = list(medias)
+    counter = Counter(media.media_type for media in medias_list)
+    total = len(medias_list)
+    return {
+        "total": total,
+        "images": counter.get("image", 0),
+        "videos": counter.get("video", 0),
+        "pdfs": counter.get("pdf", 0),
+        "others": counter.get("other", 0),
+    }
+
+
+def _configure_portfolio_form_fields(form: EventoMediaForm) -> None:
+    allowed_exts = getattr(settings, "USER_MEDIA_ALLOWED_EXTS", [])
+    file_field = form.fields.get("file")
+    if file_field is not None:
+        file_field.widget.attrs["accept"] = ",".join(allowed_exts)
+        file_field.help_text = _("Selecione um arquivo")
+    descricao_field = form.fields.get("descricao")
+    if descricao_field is not None:
+        descricao_field.help_text = _("Breve descrição do portfólio")
+
+
+def _resolve_participante_nome(inscricao: InscricaoEvento) -> str:
+    return app_resolve_participante_nome(inscricao)
+
+
+def _usuario_eh_coordenador_do_evento(user, evento: Evento) -> bool:
+    return app_is_user_event_coordinator(user, evento)
+
+
+def _usuario_tem_acesso_restrito_evento(user, evento: Evento) -> bool:
+    return app_has_restricted_event_access(user, evento)
+
+
+def _usuario_pode_gerenciar_portfolio(user, evento: Evento) -> bool:
+    return app_can_manage_event_portfolio(user, evento)
+
+
+def _usuario_pode_ver_inscritos(user, evento: Evento) -> bool:
+    return app_can_view_event_subscribers(user, evento)
+
+
+class BriefingTemplateSelectForm(forms.Form):
+    template = forms.ModelChoiceField(
+        queryset=BriefingTemplate.objects.filter(ativo=True).order_by("nome"),
+        label=_("Template"),
+        empty_label=_("Selecione um template"),
+    )
+
+
+def _get_nucleos_coordenacao_consultoria_ids(user) -> set[int]:
+    return app_get_nucleos_coordenacao_consultoria_ids(user)
+
+
+def _resolve_planejamento_permissions(user):
+    return app_resolve_planejamento_permissions(user)
+
+
+def get_evento_base_queryset(request):
+    qs = (
+        Evento.objects.select_related("nucleo", "organizacao")
+        .prefetch_related("inscricoes")
+    )
+    qs = filter_eventos_por_usuario(qs, request.user)
+    q = request.GET.get("q", "").strip()
+    if q:
+        qs = qs.filter(
+            Q(titulo__icontains=q)
+            | Q(descricao__icontains=q)
+            | Q(nucleo__nome__icontains=q)
+        )
+    return qs
+
+
+def build_evento_carousel_sections(
+    request,
+    base_queryset,
+    *,
+    can_view_planejamento_cancelados: bool | None = None,
+    nucleo_ids_limit: set[int] | None = None,
+    section_pages: dict[str, Any] | None = None,
+    only_sections: set[str] | None = None,
+):
+    if section_pages is None:
+        section_pages = {}
+
+    if _is_guest_user(request.user):
+        return {
+            "sections": {},
+            "fetch_url": reverse("eventos:eventos_carousel_api"),
+            "search_term": request.GET.get("q", "").strip(),
+            "status_filter": "todos",
+            "can_view_planejamento_cancelados": False,
+        }
+
+    if can_view_planejamento_cancelados is None or (
+        can_view_planejamento_cancelados and nucleo_ids_limit is None
+    ):
+        resolved_can_view, resolved_limit = _resolve_planejamento_permissions(
+            request.user
+        )
+        if can_view_planejamento_cancelados is None:
+            can_view_planejamento_cancelados = resolved_can_view
+        if nucleo_ids_limit is None:
+            nucleo_ids_limit = resolved_limit
+
+    def restringe_planejamento_cancelados(qs):
+        if not can_view_planejamento_cancelados:
+            return qs.none()
+        if nucleo_ids_limit is None:
+            return qs
+        if not nucleo_ids_limit:
+            return qs.none()
+        return qs.filter(nucleo_id__in=nucleo_ids_limit)
+
+    fetch_url = reverse("eventos:eventos_carousel_api")
+    search_term = request.GET.get("q", "").strip()
+    status_filter = request.GET.get("status") or ""
+    if status_filter not in {"ativos", "realizados", "planejamento", "cancelados"}:
+        status_filter = "todos"
+
+    annotated_base = base_queryset.annotate(
+        num_inscritos=Count(
+            "inscricoes",
+            filter=Q(
+                inscricoes__status="confirmada",
+                inscricoes__deleted=False,
+            ),
+            distinct=True,
+        )
+    )
+
+    sections_order = ["ativos"]
+    if can_view_planejamento_cancelados:
+        sections_order.append("planejamento")
+
+    sections_order.append("realizados")
+    if can_view_planejamento_cancelados:
+        sections_order.append("cancelados")
+
+    if only_sections is not None:
+        sections_order = [section for section in sections_order if section in only_sections]
+
+    sections: dict[str, dict[str, Any]] = {}
+
+    for section in sections_order:
+        if section == "ativos":
+            queryset = annotated_base.filter(status=Evento.Status.ATIVO).order_by(
+                "-data_inicio"
+            )
+            empty_message = _("Nenhum evento ativo encontrado.")
+            aria_label = _("Lista de eventos ativos")
+        elif section == "planejamento":
+            queryset = restringe_planejamento_cancelados(
+                annotated_base.filter(status=Evento.Status.PLANEJAMENTO)
+            ).order_by("data_inicio")
+            empty_message = _("Nenhum evento em planejamento encontrado.")
+            aria_label = _("Lista de eventos em planejamento")
+        elif section == "realizados":
+            queryset = annotated_base.filter(status=Evento.Status.CONCLUIDO).order_by(
+                "-data_inicio"
+            )
+            empty_message = _("Nenhum evento realizado encontrado.")
+            aria_label = _("Lista de eventos realizados")
+        elif section == "cancelados":
+            queryset = restringe_planejamento_cancelados(
+                annotated_base.filter(status=Evento.Status.CANCELADO)
+            ).order_by("-data_inicio")
+            empty_message = _("Nenhum evento cancelado encontrado.")
+            aria_label = _("Lista de eventos cancelados")
+        else:
+            continue
+
+        paginator = Paginator(queryset, EVENTO_CAROUSEL_PAGE_SIZE)
+        page_number = section_pages.get(section) or 1
+        page_obj = paginator.get_page(page_number)
+
+        sections[section] = {
+            "section": section,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "total": paginator.count,
+            "total_pages": paginator.num_pages,
+            "empty_message": empty_message,
+            "aria_label": aria_label,
+            "fetch_url": fetch_url,
+            "search_term": search_term,
+            "status_filter": status_filter,
+        }
+
+    return {
+        "sections": sections,
+        "fetch_url": fetch_url,
+        "search_term": search_term,
+        "status_filter": status_filter,
+        "can_view_planejamento_cancelados": can_view_planejamento_cancelados,
+    }
+
+
+# ---------------------------------------------------------------------------
+# List / Calendário
+# ---------------------------------------------------------------------------
+
+
+class EventoListView(LoginRequiredMixin, NoSuperadminMixin, ListView):
+    template_name = "eventos/evento_list.html"
+    context_object_name = "eventos"
+    paginate_by = 12
+
+    # ----- Querysets -----
+    def get_base_queryset(self):
+        if hasattr(self, "_base_queryset_cache"):
+            return self._base_queryset_cache
+        qs = get_evento_base_queryset(self.request)
+        self._base_queryset_cache = qs
+        return qs
+
+    def get_queryset(self):
+        qs = self.get_base_queryset()
+        if _is_guest_user(self.request.user):
+            return qs.none()
+        status_filter = self.request.GET.get("status")
+        if status_filter == "planejamento":
+            qs = qs.filter(status=Evento.Status.PLANEJAMENTO)
+        elif status_filter == "cancelados":
+            qs = qs.filter(status=Evento.Status.CANCELADO)
+        elif status_filter == "realizados":
+            qs = qs.filter(status=Evento.Status.CONCLUIDO)
+        elif status_filter == "ativos":
+            qs = qs.filter(status=Evento.Status.ATIVO)
+        return qs.annotate(
+            num_inscritos=Count(
+                "inscricoes",
+                filter=Q(
+                    inscricoes__status="confirmada",
+                    inscricoes__deleted=False,
+                ),
+                distinct=True,
+            )
+        ).order_by("-data_inicio")
+
+    # ----- Contexto -----
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        is_guest_user = _is_guest_user(user)
+        ctx["title"] = _("Eventos")
+        ctx["subtitle"] = None
+        ctx["can_create_event"] = _get_tipo_usuario(user) in {
+            UserType.ADMIN.value,
+            UserType.OPERADOR.value,
+            UserType.COORDENADOR.value,
+        }
+        ctx["can_manage_briefing_templates"] = _get_tipo_usuario(user) in {
+            UserType.ADMIN.value,
+            UserType.OPERADOR.value,
+        }
+        ctx["show_event_sections"] = not is_guest_user
+        current_filter = self.request.GET.get("status") or ""
+        if current_filter not in {"ativos", "realizados", "planejamento", "cancelados"}:
+            current_filter = "todos"
+        params = self.request.GET.copy()
+        params.pop("page", None)
+
+        def build_url(filter_value: str | None) -> str:
+            query_params = params.copy()
+            if filter_value in {"ativos", "realizados", "planejamento", "cancelados"}:
+                query_params["status"] = filter_value
+            else:
+                query_params.pop("status", None)
+            qstr = query_params.urlencode()
+            return f"{self.request.path}?{qstr}" if qstr else self.request.path
+
+        ctx["current_filter"] = current_filter
+        ctx["planejamento_filter_url"] = build_url("planejamento")
+        ctx["ativos_filter_url"] = build_url("ativos")
+        ctx["realizados_filter_url"] = build_url("realizados")
+        ctx["cancelados_filter_url"] = build_url("cancelados")
+        ctx["todos_filter_url"] = build_url(None)
+        ctx["is_planejamento_filter_active"] = current_filter == "planejamento"
+        ctx["is_ativos_filter_active"] = current_filter == "ativos"
+        ctx["is_realizados_filter_active"] = current_filter == "realizados"
+        ctx["is_cancelados_filter_active"] = current_filter == "cancelados"
+        ctx["calendario_url"] = reverse("eventos:calendario")
+        hoje = timezone.localdate()
+        ctx["calendario_mensal_url"] = reverse(
+            "eventos:calendario_mes", args=[hoje.year, hoje.month]
+        )
+
+        tipo_usuario = _get_tipo_usuario(user)
+        can_view_planejamento_cancelados = False
+        if not is_guest_user:
+            can_view_planejamento_cancelados = tipo_usuario not in {
+                UserType.ASSOCIADO.value,
+                UserType.NUCLEADO.value,
+            }
+        ctx["can_view_planejamento_cancelados"] = can_view_planejamento_cancelados
+
+        nucleo_ids_limit: set[int] | None = None
+        if can_view_planejamento_cancelados and tipo_usuario in {
+            UserType.COORDENADOR.value,
+            UserType.CONSULTOR.value,
+        }:
+            nucleo_ids_limit = _get_nucleos_coordenacao_consultoria_ids(user)
+
+        def restringe_planejamento_cancelados(qs):
+            if not can_view_planejamento_cancelados:
+                return qs.none()
+            if nucleo_ids_limit is None:
+                return qs
+            if not nucleo_ids_limit:
+                return qs.none()
+            return qs.filter(nucleo_id__in=nucleo_ids_limit)
+
+        base_qs = self.get_base_queryset()
+        if is_guest_user:
+            base_qs = base_qs.none()
+            qs = base_qs
+        else:
+            qs = self.get_queryset()
+        planejamento_filter = Q(status=Evento.Status.PLANEJAMENTO)
+        cancelados_filter = Q(status=Evento.Status.CANCELADO)
+        ctx["total_eventos"] = base_qs.count()
+        ctx["total_eventos_planejamento"] = restringe_planejamento_cancelados(
+            base_qs.filter(planejamento_filter)
+        ).count()
+        ctx["total_eventos_ativos"] = base_qs.filter(
+            status=Evento.Status.ATIVO
+        ).count()
+        ctx["total_eventos_concluidos"] = base_qs.filter(
+            status=Evento.Status.CONCLUIDO
+        ).count()
+        ctx["total_eventos_cancelados"] = restringe_planejamento_cancelados(
+            base_qs.filter(cancelados_filter)
+        ).count()
+        annotated_base = base_qs.annotate(
+            num_inscritos=Count(
+                "inscricoes",
+                filter=Q(
+                    inscricoes__status="confirmada",
+                    inscricoes__deleted=False,
+                ),
+                distinct=True,
+            )
+        )
+        ctx["eventos_planejamento"] = restringe_planejamento_cancelados(
+            annotated_base.filter(planejamento_filter)
+        ).order_by("data_inicio")
+        ctx["eventos_ativos"] = annotated_base.filter(
+            status=Evento.Status.ATIVO
+        ).order_by("-data_inicio")
+        ctx["eventos_realizados"] = annotated_base.filter(
+            status=Evento.Status.CONCLUIDO
+        ).order_by("-data_inicio")
+        ctx["eventos_cancelados"] = restringe_planejamento_cancelados(
+            annotated_base.filter(cancelados_filter)
+        ).order_by("-data_inicio")
+
+        carousel_sections = build_evento_carousel_sections(
+            self.request,
+            base_qs,
+            can_view_planejamento_cancelados=can_view_planejamento_cancelados,
+            nucleo_ids_limit=nucleo_ids_limit,
+        )
+        sections = carousel_sections["sections"]
+
+        ativos_section = sections.get("ativos")
+        ctx["eventos_ativos_page"] = ativos_section["page_obj"] if ativos_section else None
+        ctx["eventos_ativos_empty_message"] = (
+            ativos_section["empty_message"] if ativos_section else _("Nenhum evento ativo encontrado.")
+        )
+        ctx["eventos_ativos_aria_label"] = (
+            ativos_section["aria_label"] if ativos_section else _("Lista de eventos ativos")
+        )
+
+        planejamento_section = sections.get("planejamento")
+        ctx["eventos_planejamento_page"] = (
+            planejamento_section["page_obj"] if planejamento_section else None
+        )
+        ctx["eventos_planejamento_empty_message"] = (
+            planejamento_section["empty_message"]
+            if planejamento_section
+            else _("Nenhum evento em planejamento encontrado.")
+        )
+        ctx["eventos_planejamento_aria_label"] = (
+            planejamento_section["aria_label"]
+            if planejamento_section
+            else _("Lista de eventos em planejamento")
+        )
+
+        realizados_section = sections.get("realizados")
+        ctx["eventos_realizados_page"] = (
+            realizados_section["page_obj"] if realizados_section else None
+        )
+        ctx["eventos_realizados_empty_message"] = (
+            realizados_section["empty_message"]
+            if realizados_section
+            else _("Nenhum evento realizado encontrado.")
+        )
+        ctx["eventos_realizados_aria_label"] = (
+            realizados_section["aria_label"]
+            if realizados_section
+            else _("Lista de eventos realizados")
+        )
+
+        cancelados_section = sections.get("cancelados")
+        ctx["eventos_cancelados_page"] = (
+            cancelados_section["page_obj"] if cancelados_section else None
+        )
+        ctx["eventos_cancelados_empty_message"] = (
+            cancelados_section["empty_message"]
+            if cancelados_section
+            else _("Nenhum evento cancelado encontrado.")
+        )
+        ctx["eventos_cancelados_aria_label"] = (
+            cancelados_section["aria_label"]
+            if cancelados_section
+            else _("Lista de eventos cancelados")
+        )
+
+        ctx["eventos_carousel_fetch_url"] = carousel_sections["fetch_url"]
+        ctx["eventos_search_query"] = carousel_sections["search_term"]
+        ctx["eventos_status_filter"] = carousel_sections["status_filter"]
+
+        ctx["total_inscritos"] = InscricaoEvento.objects.filter(evento__in=qs).count()
+        ctx["q"] = self.request.GET.get("q", "").strip()
+        ctx["querystring"] = urlencode(params, doseq=True)
+        ctx.setdefault("object_list", ctx.get(self.context_object_name, []))
+        ctx.setdefault("card_template", "eventos/componentes/card_evento.html")
+        ctx.setdefault("item_context_name", "evento")
+        ctx.setdefault("empty_message", _("Nenhum evento encontrado."))
+
+        minhas_inscricoes = []
+        show_minhas_inscricoes_card = (
+            user.is_authenticated
+            and _get_tipo_usuario(user) in MINHAS_INSCRICOES_ALLOWED_TYPES
+        )
+        if show_minhas_inscricoes_card:
+            inscricoes_qs = (
+                InscricaoEvento.objects.filter(
+                    user=user,
+                    status="confirmada",
+                    deleted=False,
+                    evento__status=Evento.Status.ATIVO,
+                    evento__deleted=False,
+                )
+                .select_related("evento", "user")
+                .order_by("evento__data_inicio", "evento__titulo")
+            )
+            minhas_inscricoes = list(inscricoes_qs)
+            for inscricao in minhas_inscricoes:
+                valor_exibicao = inscricao.valor_pago
+                if valor_exibicao is None:
+                    valor_exibicao = inscricao.get_valor_evento()
+                inscricao.valor_exibicao = valor_exibicao
+                if not inscricao.qrcode_url:
+                    inscricao.gerar_qrcode()
+                    inscricao.save(update_fields=["qrcode_url"])
+
+        ctx["minhas_inscricoes"] = minhas_inscricoes
+        ctx["show_minhas_inscricoes_card"] = show_minhas_inscricoes_card
+        return ctx
+
+
+class EventoListCarouselView(LoginRequiredMixin, NoSuperadminMixin, View):
+    http_method_names = ["get"]
+    sections = {"ativos", "planejamento", "realizados", "cancelados"}
+
+    def get(self, request, *args, **kwargs):
+        if _is_guest_user(request.user):
+            return JsonResponse({"error": _("Seção indisponível para o usuário.")}, status=403)
+
+        section = request.GET.get("section")
+        if section not in self.sections:
+            return JsonResponse({"error": _("Seção inválida.")}, status=400)
+
+        can_view_planejamento_cancelados, nucleo_ids_limit = _resolve_planejamento_permissions(
+            request.user
+        )
+        if section in {"planejamento", "cancelados"} and not can_view_planejamento_cancelados:
+            return JsonResponse({"error": _("Seção indisponível para o usuário.")}, status=403)
+
+        base_queryset = get_evento_base_queryset(request)
+        carousel_sections = build_evento_carousel_sections(
+            request,
+            base_queryset,
+            can_view_planejamento_cancelados=can_view_planejamento_cancelados,
+            nucleo_ids_limit=nucleo_ids_limit,
+            section_pages={section: request.GET.get("page")},
+            only_sections={section},
+        )
+        section_data = carousel_sections["sections"].get(section)
+        if section_data is None:
+            return JsonResponse({"error": _("Seção não disponível.")}, status=404)
+
+        page_obj = section_data["page_obj"]
+        html = render_to_string(
+            "eventos/partials/evento_carousel_slide.html",
+            {
+                "eventos": page_obj.object_list,
+                "page_number": page_obj.number,
+                "empty_message": section_data["empty_message"],
+            },
+            request=request,
+        )
+
+        return JsonResponse(
+            {
+                "html": html,
+                "page": page_obj.number,
+                "total_pages": section_data["total_pages"],
+                "count": section_data["total"],
+            }
+        )
+
+
+# ---------------------------------------------------------------------------
+# Calendário e listagens auxiliares
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@no_superadmin_required
+def calendario(request, ano: int | None = None, mes: int | None = None):
+    if getattr(request.user, "user_type", None) == UserType.ROOT:
+        return HttpResponseForbidden()
+    hoje = timezone.localdate()
+    if ano is None or mes is None:
+        ano, mes = hoje.year, hoje.month
+    try:
+        primeiro_dia = date(ano, mes, 1)
+    except ValueError as exc:
+        raise Http404("Mês inválido") from exc
+    cal = calendar.Calendar(firstweekday=0)
+    dias_iterados = list(cal.itermonthdates(ano, mes))
+    inicio_periodo, fim_periodo = dias_iterados[0], dias_iterados[-1]
+    eventos_qs = (
+        _queryset_por_organizacao(request)
+        .filter(data_inicio__date__range=(inicio_periodo, fim_periodo))
+        .select_related("organizacao")
+        .prefetch_related("inscricoes")
+        .order_by("data_inicio")
+    )
+    eventos_por_dia: dict[date, list[Evento]] = {}
+    for ev in eventos_qs:
+        d = timezone.localtime(ev.data_inicio).date()
+        eventos_por_dia.setdefault(d, []).append(ev)
+
+    highlight_schemes = [
+        {
+            "cell": "bg-[var(--success-light)] text-[var(--success)] shadow-[inset_0_0_0_1px_var(--success)]",
+            "icon": "bg-[var(--success-light)] text-[var(--success)]",
+            "badge": "bg-[var(--success-light)] text-[var(--success)]",
+        },
+        {
+            "cell": "bg-[var(--warning-light)] text-[var(--warning)] shadow-[inset_0_0_0_1px_var(--warning)]",
+            "icon": "bg-[var(--warning-light)] text-[var(--warning)]",
+            "badge": "bg-[var(--warning-light)] text-[var(--warning)]",
+        },
+        {
+            "cell": "bg-[var(--primary-light)] text-[var(--primary)] shadow-[inset_0_0_0_1px_var(--primary)]",
+            "icon": "bg-[var(--primary-light)] text-[var(--primary)]",
+            "badge": "bg-[var(--primary-light)] text-[var(--primary)]",
+        },
+        {
+            "cell": "bg-[var(--error-light)] text-[var(--error)] shadow-[inset_0_0_0_1px_var(--error)]",
+            "icon": "bg-[var(--error-light)] text-[var(--error)]",
+            "badge": "bg-[var(--error-light)] text-[var(--error)]",
+        },
+    ]
+
+    dias_eventos_ordenados = sorted(eventos_por_dia.items(), key=lambda item: item[0])
+    highlight_por_dia: dict[date, dict[str, str]] = {
+        dia: highlight_schemes[idx % len(highlight_schemes)]
+        for idx, (dia, _) in enumerate(dias_eventos_ordenados)
+    }
+
+    dias_mes = [
+        {
+            "data": d,
+            "mes_atual": d.month == mes,
+            "hoje": d == hoje,
+            "eventos": eventos_por_dia.get(d, []),
+            "highlight": highlight_por_dia.get(d),
+        }
+        for d in dias_iterados
+    ]
+    dias_com_eventos = []
+    for dia, eventos in dias_eventos_ordenados:
+        if not eventos:
+            continue
+        dias_com_eventos.append(
+            {
+                "data": dia,
+                "mes_atual": dia.month == mes,
+                "hoje": dia == hoje,
+                "eventos": sorted(eventos, key=lambda e: timezone.localtime(e.data_inicio)),
+                "highlight": highlight_por_dia[dia],
+            }
+        )
+    prev_ano, prev_mes = (ano - 1, 12) if mes == 1 else (ano, mes - 1)
+    next_ano, next_mes = (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+    dia_sel = hoje if (hoje.year, hoje.month) == (ano, mes) else primeiro_dia
+    context = {
+        "dias_mes": dias_mes,
+        "data_atual": primeiro_dia,
+        "hoje": hoje,
+        "prev_ano": prev_ano,
+        "prev_mes": prev_mes,
+        "next_ano": next_ano,
+        "next_mes": next_mes,
+        "dia": dia_sel,
+        "eventos": eventos_por_dia.get(dia_sel, []),
+        "dias_com_eventos": dias_com_eventos,
+        "title": _("Calendário mensal"),
+        "subtitle": None,
+        "calendario_url": reverse("eventos:calendario"),
+    }
+    return TemplateResponse(request, "eventos/calendario_mes.html", context)
+
+
+@login_required
+@no_superadmin_required
+def calendario_cards_ultimos_30(request):
+    if getattr(request.user, "user_type", None) == UserType.ROOT:
+        return HttpResponseForbidden()
+    hoje = timezone.localdate()
+    fim = hoje + timedelta(days=30)
+    qs = (
+        _queryset_por_organizacao(request)
+        .filter(data_inicio__date__range=(hoje, fim))
+        .select_related("organizacao")
+        .prefetch_related("inscricoes")
+        .order_by("data_inicio")
+    )
+    agrupado: dict[date, list[Evento]] = {}
+    for ev in qs:
+        d = timezone.localtime(ev.data_inicio).date()
+        agrupado.setdefault(d, []).append(ev)
+    dias_com_eventos = [
+        {"data": d, "eventos": evs} for d, evs in sorted(agrupado.items(), key=lambda x: x[0])
+    ]
+    context = {
+        "dias_com_eventos": dias_com_eventos,
+        "data_atual": hoje,
+        "hoje": hoje,
+        "title": _("Eventos"),
+        "subtitle": None,
+    }
+    return TemplateResponse(request, "eventos/calendario.html", context)
+
+
+@login_required
+@no_superadmin_required
+def lista_eventos(request, dia_iso: str):
+    try:
+        dia = date.fromisoformat(dia_iso)
+    except ValueError:
+        return HttpResponseBadRequest("Parâmetro 'dia' inválido.")
+    if getattr(request.user, "user_type", None) == UserType.ROOT:
+        return HttpResponseForbidden()
+    eventos = (
+        _queryset_por_organizacao(request)
+        .filter(data_inicio__date=dia)
+        .select_related("organizacao", "nucleo")
+        .prefetch_related("inscricoes")
+        .order_by("data_inicio")
+    )
+    context = {"dia": dia, "eventos": list(eventos), "title": _("Eventos"), "subtitle": None}
+    return TemplateResponse(
+        request,
+        "eventos/partials/calendario/_lista_eventos_dia.html",
+        context,
+    )
+
+
+@login_required
+@no_superadmin_required
+def painel_eventos(request):
+    return calendario_cards_ultimos_30(request)
+
+
+# ---------------------------------------------------------------------------
+# Briefings
+# ---------------------------------------------------------------------------
+
+
+class BriefingTemplateListView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOrOperatorRequiredMixin,
+    ListView,
+):
+    model = BriefingTemplate
+    template_name = "eventos/briefings/template_list.html"
+
+    def get_queryset(self):
+        return BriefingTemplate.objects.annotate(briefing_total=Count("briefings")).order_by("nome")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        fallback_url = reverse("eventos:lista")
+        context.update(
+            {
+                "title": _("Modelos de Briefing"),
+                "subtitle": _("Gerencie os templates utilizados para coletar informações dos eventos."),
+                "back_href": fallback_url,
+            }
+        )
+        return context
+
+
+@method_decorator(transaction.atomic, name="dispatch")
+class BriefingTemplateCreateView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOrOperatorRequiredMixin,
+    CreateView,
+):
+    model = BriefingTemplate
+    form_class = BriefingTemplateForm
+    template_name = "eventos/briefings/template_form.html"
+    success_url = reverse_lazy("eventos:briefing_template_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "title": _("Adicionar modelo de briefing"),
+                "subtitle": _("Defina as perguntas padrão para novos eventos."),
+                "back_href": resolve_back_href(self.request, fallback=str(self.success_url)),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, _("Modelo de briefing criado com sucesso."))
+        return super().form_valid(form)
+
+
+@method_decorator(transaction.atomic, name="dispatch")
+class BriefingTemplateUpdateView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOrOperatorRequiredMixin,
+    UpdateView,
+):
+    model = BriefingTemplate
+    form_class = BriefingTemplateForm
+    template_name = "eventos/briefings/template_form.html"
+    success_url = reverse_lazy("eventos:briefing_template_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "title": _("Editar modelo de briefing"),
+                "subtitle": getattr(self.object, "descricao", None),
+                "back_href": resolve_back_href(self.request, fallback=str(self.success_url)),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, _("Modelo de briefing atualizado com sucesso."))
+        return super().form_valid(form)
+
+
+@method_decorator(transaction.atomic, name="dispatch")
+class BriefingTemplateDeleteView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOrOperatorRequiredMixin,
+    DeleteView,
+):
+    model = BriefingTemplate
+    template_name = "eventos/briefings/template_confirm_delete.html"
+    success_url = reverse_lazy("eventos:briefing_template_list")
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self.object.ativo = False
+        self.object.save(update_fields=["ativo", "updated_at"])
+        messages.success(self.request, _("Modelo de briefing desativado."))
+        return redirect(self.get_success_url())
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "title": _("Desativar modelo de briefing"),
+                "subtitle": getattr(self.object, "descricao", None),
+                "back_href": resolve_back_href(self.request, fallback=str(self.success_url)),
+            }
+        )
+        return context
+
+
+@method_decorator(transaction.atomic, name="dispatch")
+class BriefingTemplateSelectView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    TemplateView,
+):
+    template_name = "eventos/briefings/briefing_select.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.evento = get_object_or_404(
+            filter_eventos_por_usuario(
+                Evento.objects.select_related(
+                    "organizacao",
+                    "nucleo",
+                    "briefing__template",
+                ).prefetch_related("inscricoes"),
+                request.user,
+            ),
+            pk=kwargs.get("evento_id"),
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form(self):
+        initial = build_briefing_select_initial(
+            self.evento,
+            form_is_bound=bool(self.request.POST),
+        )
+        return BriefingTemplateSelectForm(self.request.POST or None, initial=initial)
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data()
+        if request.headers.get("HX-Target") == "modal":
+            return TemplateResponse(
+                request,
+                "eventos/briefings/partials/briefing_select_modal.html",
+                context,
+            )
+        return self.render_to_response(context)
+
+    def post(self, request, *args, **kwargs):
+        form = self.get_form()
+        if not form.is_valid():
+            context = self.get_context_data(form=form)
+            if request.headers.get("HX-Target") == "modal":
+                return TemplateResponse(
+                    request,
+                    "eventos/briefings/partials/briefing_select_modal.html",
+                    context,
+                )
+            return self.render_to_response(context)
+
+        template = form.cleaned_data["template"]
+        apply_briefing_template_selection(self.evento, template)
+
+        messages.success(self.request, _("Template selecionado com sucesso."))
+        return redirect(
+            "eventos:briefing_preencher",
+            evento_id=self.evento.pk,
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "evento": self.evento,
+                "form": kwargs.get("form") or self.get_form(),
+                "title": _("Selecionar template de briefing"),
+                "subtitle": self.evento.titulo,
+                "back_href": resolve_back_href(
+                    self.request,
+                    fallback=reverse("eventos:evento_detalhe", kwargs={"pk": self.evento.pk}),
+                ),
+            }
+        )
+        return context
+
+
+@method_decorator(transaction.atomic, name="dispatch")
+class BriefingEventoFillView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    UpdateView,
+):
+    model = BriefingEvento
+    form_class = BriefingEventoForm
+    template_name = "eventos/briefings/briefing_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.evento = get_object_or_404(
+            filter_eventos_por_usuario(
+                Evento.objects.select_related(
+                    "organizacao",
+                    "nucleo",
+                    "briefing__template",
+                ),
+                request.user,
+            ),
+            pk=kwargs.get("evento_id"),
+        )
+        self.briefing = get_evento_briefing(self.evento)
+        if self.briefing is None:
+            messages.warning(self.request, _("Selecione um template antes de preencher o briefing."))
+            return redirect("eventos:briefing_selecionar", evento_id=self.evento.pk)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        return self.briefing
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["template"] = self.briefing.template
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "evento": self.evento,
+                "title": _("Preencher briefing"),
+                "subtitle": self.evento.titulo,
+                "back_href": resolve_back_href(
+                    self.request,
+                    fallback=reverse("eventos:evento_detalhe", kwargs={"pk": self.evento.pk}),
+                ),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, _("Briefing atualizado com sucesso."))
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("eventos:evento_detalhe", kwargs={"pk": self.evento.pk})
+
+
+class BriefingEventoDetailView(BriefingEventoFillView):
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        for field in form.fields.values():
+            field.disabled = True
+            field.widget.attrs.setdefault("readonly", "readonly")
+        return form
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "title": _("Visualizar briefing"),
+                "readonly": True,
+            }
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        return HttpResponseNotAllowed(["GET"])
+
+
+# ---------------------------------------------------------------------------
+# CRUD Evento
+# ---------------------------------------------------------------------------
+
+
+class EventoCreateView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    CreateView,
+):
+    model = Evento
+    form_class = EventoForm
+    template_name = "eventos/evento_form.html"
+    success_url = reverse_lazy("eventos:lista")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        return kwargs
+
+    def dispatch(self, request, *args, **kwargs):
+        ensure_user_can_create_evento(_get_tipo_usuario(request.user))
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        fallback_url = str(self.success_url)
+        back_href = resolve_back_href(self.request, fallback=fallback_url)
+        context.update(
+            {
+                "back_href": back_href,
+                "title": _("Adicionar evento"),
+                "subtitle": _("Cadastre novos eventos para a sua organização."),
+            }
+        )
+        return context
+
+    def form_valid(self, form):
+        form.instance.organizacao = self.request.user.organizacao
+        ensure_coordinator_can_use_nucleo(
+            user_type=_get_tipo_usuario(self.request.user),
+            allowed_nucleo_ids=get_coordenador_nucleo_ids(self.request.user),
+            nucleo_id=form.instance.nucleo_id,
+        )
+        messages.success(self.request, _("Evento criado com sucesso."))
+        response = super().form_valid(form)
+        EventoLog.objects.create(evento=self.object, usuario=self.request.user, acao="evento_criado")
+        return response
+
+
+class EventoUpdateView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    UpdateView,
+):
+    model = Evento
+    form_class = EventoForm
+    template_name = "eventos/evento_form.html"
+    def get_form_kwargs(self):  # pragma: no cover
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        return kwargs
+
+    def get_queryset(self):  # pragma: no cover
+        queryset = _queryset_por_organizacao(self.request)
+        return apply_coordinator_nucleo_scope(
+            queryset,
+            user_type=_get_tipo_usuario(self.request.user),
+            allowed_nucleo_ids=get_coordenador_nucleo_ids(self.request.user),
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["evento"] = self.object
+        fallback_url = reverse("eventos:calendario")
+        back_href = resolve_back_href(self.request, fallback=fallback_url)
+        context.update(
+            {
+                "back_href": back_href,
+                "title": _("Editar Evento"),
+                "subtitle": getattr(self.object, "descricao", None),
+            }
+        )
+        return context
+
+    def get_success_url(self):
+        return reverse("eventos:evento_detalhe", kwargs={"pk": self.object.pk})
+
+    def form_valid(self, form):  # pragma: no cover
+        old_obj = self.get_object()
+        detalhes = build_evento_change_details(
+            old_obj=old_obj,
+            cleaned_data=form.cleaned_data,
+            changed_fields=form.changed_data,
+        )
+
+        messages.success(self.request, _("Evento atualizado com sucesso."))  # pragma: no cover
+        response = super().form_valid(form)  # pragma: no cover
+        EventoLog.objects.create(
+            evento=self.object,
+            usuario=self.request.user,
+            acao="evento_atualizado",
+            detalhes=detalhes,
+        )
+        return response
+
+
+class EventoDeleteView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    DeleteView,
+):
+    model = Evento
+    template_name = "eventos/delete.html"
+    success_url = reverse_lazy("eventos:lista")
+
+    def get_queryset(self):  # pragma: no cover
+        queryset = _queryset_por_organizacao(self.request)
+        return apply_coordinator_nucleo_scope(
+            queryset,
+            user_type=_get_tipo_usuario(self.request.user),
+            allowed_nucleo_ids=get_coordenador_nucleo_ids(self.request.user),
+        )
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        is_htmx = bool(request.headers.get("HX-Request"))
+        if is_htmx:
+            context = {
+                "evento": self.object,
+                "titulo": _("Remover Evento"),
+                "mensagem": format_html(
+                    _("Tem certeza que deseja remover o evento <strong>{titulo}</strong>?"),
+                    titulo=self.object.titulo,
+                ),
+                "submit_label": _("Remover"),
+                "form_action": reverse("eventos:evento_excluir", args=[self.object.pk]),
+                "redirect_url": str(self.get_success_url()),
+            }
+            return TemplateResponse(
+                request,
+                "eventos/partials/evento_delete_modal.html",
+                context,
+            )
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["evento"] = self.object
+        context["title"] = _("Remover Evento")
+        context["subtitle"] = getattr(self.object, "descricao", None)
+        fallback = reverse("eventos:evento_detalhe", args=[self.object.pk])
+        context["back_href"] = resolve_back_href(self.request, fallback=fallback)
+        return context
+
+    def delete(self, request, *args, **kwargs):  # pragma: no cover
+        self.object = self.get_object()
+        EventoLog.objects.create(
+            evento=self.object,
+            usuario=request.user,
+            acao="evento_excluido",
+            detalhes={"titulo": self.object.titulo},
+        )
+        messages.success(self.request, _("Evento removido."))  # pragma: no cover
+        response = super().delete(request, *args, **kwargs)  # pragma: no cover
+        if bool(request.headers.get("HX-Request")):
+            hx_response = HttpResponse(status=204)
+            hx_response["HX-Redirect"] = str(self.get_success_url())
+            return hx_response
+        return response  # pragma: no cover
+
+
+class EventoDetailView(LoginRequiredMixin, NoSuperadminMixin, DetailView):
+    model = Evento
+    template_name = "eventos/detail.html"
+
+    def get_inscritos_paginate_by(self) -> int:
+        return getattr(settings, "EVENTOS_INSCRITOS_PAGINATE_BY", 12)
+
+    def get_convites_paginate_by(self) -> int:
+        return getattr(settings, "EVENTOS_CONVITES_PAGINATE_BY", 6)
+
+    def get_convites_page_number(self) -> int:
+        return 1
+
+    def get_inscritos_base_queryset(self):
+        return (
+            InscricaoEvento.objects.filter(
+                evento=self.object,
+                status="confirmada",
+                deleted=False,
+            )
+            .select_related("user")
+            .order_by("-data_confirmacao", "-created_at")
+        )
+
+    def get_inscritos_search_query(self) -> str:
+        return (self.request.GET.get("search", "") or "").strip()
+
+    def filter_inscritos_queryset(self, qs, search_query: str):
+        if search_query:
+            for term in search_query.split():
+                qs = qs.filter(
+                    Q(user__contato__icontains=term)
+                    | Q(user__nome_fantasia__icontains=term)
+                    | Q(user__email__icontains=term)
+                    | Q(user__username__icontains=term)
+                )
+        return qs
+
+    def get_queryset(self):
+        base = (
+            Evento.objects.select_related("organizacao")
+            .prefetch_related("inscricoes", "feedbacks", "midias__tags")
+        )
+        return filter_eventos_por_usuario(base, self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        evento: Evento = self.object
+        context["evento"] = evento
+        minha_inscricao = (
+            InscricaoEvento.objects.filter(
+                evento=evento,
+                user=user,
+                status="confirmada",
+                deleted=False,
+            )
+            .select_related("user")
+            .first()
+        )
+        confirmada = bool(minha_inscricao)
+        context["inscricao_confirmada"] = confirmada
+        now = timezone.now()
+        context["avaliacao_permitida"] = can_user_rate_event(
+            inscricao_confirmada=confirmada,
+            evento_data_fim=evento.data_fim,
+            now=now,
+        )
+        if minha_inscricao is not None:
+            minha_inscricao.evento = evento
+            valor_exibicao = minha_inscricao.valor_pago
+            if valor_exibicao is None:
+                valor_exibicao = minha_inscricao.get_valor_evento()
+            minha_inscricao.valor_exibicao = valor_exibicao
+            if not minha_inscricao.qrcode_url:
+                minha_inscricao.gerar_qrcode()
+                minha_inscricao.save(update_fields=["qrcode_url"])
+        context["inscricao"] = minha_inscricao
+        context["inscricao_permitida"] = evento.status == Evento.Status.ATIVO
+        context["back_href"] = self._resolve_back_href()
+        if context["avaliacao_permitida"]:
+            context["feedback_form"] = FeedbackForm()
+        # Evita oferecer cancelamento quando o evento já começou
+        context["pode_cancelar"] = can_cancelar_inscricao(
+            inscricao_confirmada=bool(minha_inscricao),
+            inscricao_permitida=context["inscricao_permitida"],
+            evento_data_inicio=evento.data_inicio,
+            pagamento_validado=bool(getattr(minha_inscricao, "pagamento_validado", False)),
+            now=now,
+        )
+        inscricoes = list(
+            InscricaoEvento.objects.filter(evento=evento, deleted=False)
+            .select_related("user")
+        )
+        inscricoes_financeiro = sort_inscricoes_financeiro(inscricoes)
+        inscricao_status_summary = build_inscricao_status_summary(
+            inscricoes=inscricoes,
+            participantes_maximo=evento.participantes_maximo,
+        )
+        total_confirmadas = inscricao_status_summary["total_inscricoes_confirmadas"]
+        total_pendentes = inscricao_status_summary["total_inscricoes_pendentes"]
+        total_canceladas = inscricao_status_summary["total_inscricoes_canceladas"]
+        vagas_disponiveis = inscricao_status_summary["vagas_disponiveis"]
+        inscritos_queryset = self.get_inscritos_base_queryset()
+        inscritos_search_query = self.get_inscritos_search_query()
+        filtered_inscritos = self.filter_inscritos_queryset(
+            inscritos_queryset, inscritos_search_query
+        )
+        paginator = Paginator(filtered_inscritos, self.get_inscritos_paginate_by())
+        page_number = self.request.GET.get("page")
+        inscritos_page_obj = paginator.get_page(page_number)
+        inscricoes_confirmadas = list(inscritos_page_obj.object_list)
+        inscritos_query_params = self.request.GET.copy()
+        inscritos_query_params.pop("page", None)
+        inscritos_querystring = inscritos_query_params.urlencode()
+        feedbacks = list(evento.feedbacks.all())
+        total_feedbacks = len(feedbacks)
+        media_feedback = None
+        if total_feedbacks:
+            media_feedback = sum(f.nota for f in feedbacks) / total_feedbacks
+        tipo_usuario = _get_tipo_usuario(user)
+        pode_editar_evento = user.has_perm("eventos.change_evento")
+        pode_excluir_evento = user.has_perm("eventos.delete_evento")
+        coordenador_do_evento = False
+        if tipo_usuario == UserType.COORDENADOR.value:
+            coordenador_do_evento = _usuario_eh_coordenador_do_evento(user, evento)
+        management_permissions = resolve_event_management_permissions(
+            tipo_usuario=tipo_usuario,
+            user_has_change_perm=pode_editar_evento,
+            user_has_delete_perm=pode_excluir_evento,
+            coordenador_do_evento=coordenador_do_evento,
+        )
+        pode_editar_evento = management_permissions["pode_editar_evento"]
+        pode_excluir_evento = management_permissions["pode_excluir_evento"]
+        pode_gerenciar_inscricoes = management_permissions["pode_gerenciar_inscricoes"]
+        pode_ver_financeiro = management_permissions["pode_ver_financeiro"]
+        pode_gerenciar_convites = management_permissions["pode_gerenciar_convites"]
+        financeiro_summary = build_financeiro_summary(inscricoes_financeiro)
+        total_pagamentos_validados = financeiro_summary["total_pagamentos_validados"]
+        total_pagamentos_pendentes = financeiro_summary["total_pagamentos_pendentes"]
+        valor_total_pagamentos_validados = financeiro_summary["valor_total_pagamentos_validados"]
+
+        pode_gerenciar_portfolio = _usuario_pode_gerenciar_portfolio(user, evento)
+
+        minhas_inscricoes = []
+        if (
+            user.is_authenticated
+            and user.get_tipo_usuario == UserType.ASSOCIADO.value
+            and evento.status == Evento.Status.ATIVO
+            and minha_inscricao is not None
+        ):
+            minhas_inscricoes = [minha_inscricao]
+
+        checkins_realizados = list(
+            InscricaoEvento.objects.filter(
+                evento=evento,
+                status="confirmada",
+                deleted=False,
+                check_in_realizado_em__isnull=False,
+            )
+            .select_related("user")
+            .order_by("-check_in_realizado_em")
+        )
+        for inscricao_checkin in checkins_realizados:
+            inscricao_checkin.participante_nome = _resolve_participante_nome(
+                inscricao_checkin
+            )
+
+        portfolio_filter_form = EventoPortfolioFilterForm(self.request.GET or None)
+        portfolio_query = resolve_portfolio_query(portfolio_filter_form)
+
+        base_portfolio_qs = evento.midias.prefetch_related("tags").order_by("-created_at")
+        all_portfolio_medias = list(base_portfolio_qs)
+        portfolio_counts = _portfolio_counts(all_portfolio_medias)
+
+        if portfolio_query:
+            filtered_qs = base_portfolio_qs.filter(
+                Q(descricao__icontains=portfolio_query)
+                | Q(tags__nome__icontains=portfolio_query)
+            ).distinct()
+            portfolio_medias = list(filtered_qs)
+        else:
+            portfolio_medias = all_portfolio_medias
+
+        portfolio_form = getattr(self, "_portfolio_form", None)
+        portfolio_show_form = False
+        if pode_gerenciar_portfolio:
+            if portfolio_form is None:
+                portfolio_form = EventoMediaForm()
+            _configure_portfolio_form_fields(portfolio_form)
+            portfolio_show_form = resolve_portfolio_show_form(
+                can_manage_portfolio=pode_gerenciar_portfolio,
+                query_add_flag=self.request.GET.get("portfolio_adicionar") == "1",
+                force_show_flag=getattr(self, "_portfolio_show_form", False),
+            )
+        else:
+            portfolio_form = None
+
+        selection_state = resolve_portfolio_selection_state(
+            all_portfolio_medias=all_portfolio_medias,
+            portfolio_media_id=self.request.GET.get("portfolio_midia"),
+            portfolio_show_form=portfolio_show_form,
+        )
+        portfolio_selected_media = selection_state["portfolio_selected_media"]
+        portfolio_show_detail = selection_state["portfolio_show_detail"]
+        portfolio_force_open = selection_state["portfolio_force_open"]
+        portfolio_show_form = selection_state["portfolio_show_form"]
+
+        navigation_state = resolve_portfolio_navigation_state(
+            query_params=self.request.GET,
+            request_path=self.request.path,
+        )
+        portfolio_query_base = navigation_state["portfolio_query_base"]
+        portfolio_detail_back_url = navigation_state["portfolio_detail_back_url"]
+
+        context.update(
+            {
+                "pode_gerenciar_convites": pode_gerenciar_convites,
+                "pode_gerenciar_portfolio": pode_gerenciar_portfolio,
+                "portfolio_medias": portfolio_medias,
+                "portfolio_counts": portfolio_counts,
+                "portfolio_filter_form": portfolio_filter_form,
+                "portfolio_query": portfolio_query,
+                "portfolio_form": portfolio_form,
+                "portfolio_show_form": portfolio_show_form,
+                "portfolio_selected_media": portfolio_selected_media,
+                "portfolio_show_detail": portfolio_show_detail,
+                "portfolio_force_open": portfolio_force_open,
+                "portfolio_query_base": portfolio_query_base,
+                "portfolio_detail_back_url": portfolio_detail_back_url,
+            }
+        )
+
+        convites_queryset = evento.convites.all()
+        convites_paginator = Paginator(
+            convites_queryset, self.get_convites_paginate_by()
+        )
+        convites_page_obj = convites_paginator.get_page(self.get_convites_page_number())
+
+        context.update(
+            {
+                "convites_page_obj": convites_page_obj,
+                "convites_total_count": convites_paginator.count,
+                "convites_carousel_fetch_url": reverse(
+                    "eventos:evento_convites_carousel", args=[evento.pk]
+                ),
+            }
+        )
+
+        context.update(
+            {
+                "is_htmx": bool(self.request.headers.get("HX-Request")),
+                "local": evento.local,
+                "cidade": evento.cidade,
+                "estado": evento.estado,
+                "cep": evento.cep,
+                "participantes_maximo": evento.participantes_maximo,
+                "orcamento_estimado": evento.orcamento_estimado,
+                "valor_gasto": evento.valor_gasto,
+                "inscricao_confirmada": confirmada,
+                "total_inscricoes": len(inscricoes),
+                "total_inscricoes_confirmadas": total_confirmadas,
+                "total_inscricoes_pendentes": total_pendentes,
+                "total_inscricoes_canceladas": total_canceladas,
+                "total_presentes": evento.numero_presentes,
+                "vagas_disponiveis": vagas_disponiveis,
+                "media_feedback": media_feedback,
+                "total_feedbacks": total_feedbacks,
+                "inscritos_page_obj": inscritos_page_obj,
+                "inscritos_search_query": inscritos_search_query,
+                "inscritos_filtered_count": inscritos_page_obj.paginator.count,
+                "inscritos_total_count": total_confirmadas,
+                "inscritos_querystring": inscritos_querystring,
+                "inscricoes_confirmadas": inscricoes_confirmadas,
+                "inscricoes_financeiro": inscricoes_financeiro,
+                "minhas_inscricoes": minhas_inscricoes,
+                "checkins_realizados": checkins_realizados,
+                "pode_editar_evento": pode_editar_evento,
+                "pode_excluir_evento": pode_excluir_evento,
+                "pode_gerenciar_inscricoes": pode_gerenciar_inscricoes,
+                "pode_ver_financeiro": pode_ver_financeiro,
+                "total_pagamentos_validados": total_pagamentos_validados,
+                "total_pagamentos_pendentes": total_pagamentos_pendentes,
+                "valor_total_pagamentos_validados": valor_total_pagamentos_validados,
+                "pode_ver_campos_restritos": _usuario_tem_acesso_restrito_evento(user, evento),
+            }
+        )
+        context["inscritos_carousel_fetch_url"] = reverse(
+            "eventos:evento_inscritos_carousel", args=[evento.pk]
+        )
+        context["inscritos_evento_id"] = str(evento.pk)
+        context["title"] = evento.titulo
+        context["subtitle"] = getattr(evento, "descricao", None)
+        context["pode_ver_inscritos"] = _usuario_pode_ver_inscritos(user, evento)
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if request.POST.get("form_name") == "evento_portfolio":
+            return self._handle_portfolio_post(request, *args, **kwargs)
+        return super().get(request, *args, **kwargs)
+
+    def _handle_portfolio_post(self, request, *args, **kwargs):
+        if not _usuario_pode_gerenciar_portfolio(request.user, self.object):
+            raise PermissionDenied
+
+        form = EventoMediaForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save(evento=self.object)
+            messages.success(request, _("Arquivo enviado com sucesso."))
+            return redirect("eventos:evento_detalhe", pk=self.object.pk)
+
+        self._portfolio_form = form
+        self._portfolio_show_form = True
+        return self.get(request, *args, **kwargs)
+
+    def _resolve_back_href(self) -> str:
+        request = self.request
+        fallback = reverse("eventos:calendario")
+        return resolve_back_href(request, fallback=fallback)
+
+
+class EventoInscritosPDFView(LoginRequiredMixin, NoSuperadminMixin, DetailView):
+    model = Evento
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if not _usuario_pode_ver_inscritos(request.user, self.object):
+            raise PermissionDenied
+        inscricoes_queryset = (
+            InscricaoEvento.objects.filter(
+                evento=self.object,
+                status="confirmada",
+                deleted=False,
+            )
+            .select_related("user")
+            .order_by("user__contato", "user__nome_fantasia", "user__username")
+        )
+
+        inscricoes = prepare_inscricoes_for_report(inscricoes_queryset)
+        contexto = {
+            "evento": self.object,
+            "inscricoes": inscricoes,
+            "generated_at": timezone.localtime(),
+        }
+        if pisa is None:
+            raise ImproperlyConfigured("xhtml2pdf precisa estar instalado para gerar PDFs.")
+
+        rendered_html = render_to_string(
+            "eventos/pdf/inscritos.html",
+            contexto,
+            request=request,
+        )
+
+        pdf_buffer = BytesIO()
+        pdf_result = pisa.CreatePDF(
+            rendered_html,
+            dest=pdf_buffer,
+            encoding="utf-8",
+        )
+        if getattr(pdf_result, "err", False):
+            return HttpResponseServerError("Não foi possível gerar o PDF de inscritos.")
+
+        response = HttpResponse(pdf_buffer.getvalue(), content_type="application/pdf")
+        slug = getattr(self.object, "slug", None) or str(self.object.pk)
+        response["Content-Disposition"] = (
+            f'attachment; filename="inscritos-{slug}.pdf"'
+        )
+        return response
+
+
+class EventoInscritosPartialView(EventoDetailView):
+    template_name = "eventos/partials/inscritos_list.html"
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if not _usuario_pode_ver_inscritos(request.user, self.object):
+            raise PermissionDenied
+        context = self.get_context_data(object=self.object)
+        return self.render_to_response(context)
+
+
+class EventoInscritosCarouselView(EventoInscritosPartialView):
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if not _usuario_pode_ver_inscritos(request.user, self.object):
+            raise PermissionDenied
+        context = self.get_context_data(object=self.object)
+        page_obj = context.get("inscritos_page_obj")
+        page_number = getattr(page_obj, "number", 1)
+        paginator = getattr(page_obj, "paginator", None)
+        total_pages = getattr(paginator, "num_pages", 1)
+        total_count = getattr(paginator, "count", 0)
+        total_count = context.get("inscritos_filtered_count", total_count)
+        slides_html = render_to_string(
+            "eventos/partials/inscritos_carousel_slide.html",
+            {
+                "inscricoes": context.get("inscricoes_confirmadas", []),
+                "page_number": page_number,
+                "inscritos_search_query": context.get("inscritos_search_query"),
+                "pode_gerenciar_inscricoes": context.get("pode_gerenciar_inscricoes"),
+                "object": context.get("object", self.object),
+                "evento": context.get("evento", self.object),
+            },
+            request=request,
+        )
+        payload = {
+            "html": slides_html,
+            "page": page_number,
+            "total_pages": total_pages,
+            "count": total_count,
+        }
+        return JsonResponse(payload)
+
+
+class EventoConvitesCarouselView(EventoDetailView):
+    def get_convites_page_number(self) -> int:
+        try:
+            return int(self.request.GET.get("page", 1))
+        except (TypeError, ValueError):
+            return 1
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        tipo_usuario = _get_tipo_usuario(request.user)
+        if tipo_usuario not in {
+            UserType.ADMIN.value,
+            UserType.OPERADOR.value,
+            UserType.COORDENADOR.value,
+        }:
+            raise PermissionDenied
+
+        context = self.get_context_data(object=self.object)
+        page_obj = context.get("convites_page_obj")
+        page_number = getattr(page_obj, "number", 1)
+        paginator = getattr(page_obj, "paginator", None)
+        total_pages = getattr(paginator, "num_pages", 1)
+        total_count = getattr(paginator, "count", 0)
+
+        slides_html = render_to_string(
+            "eventos/partials/convites_carousel_slide.html",
+            {
+                "convites": getattr(page_obj, "object_list", []),
+                "page_number": page_number,
+            },
+            request=request,
+        )
+
+        payload = {
+            "html": slides_html,
+            "page": page_number,
+            "total_pages": total_pages,
+            "count": total_count,
+        }
+        return JsonResponse(payload)
+
+
+# ---------------------------------------------------------------------------
+# Ações / Inscrições
+# ---------------------------------------------------------------------------
+
+
+class EventoInscricaoActionMixin:
+    def _redirect(self, request, pk):
+        redirect_url = reverse("eventos:evento_detalhe", args=[pk])
+        if bool(request.headers.get("HX-Request")):
+            response = HttpResponse(status=204)
+            response["HX-Redirect"] = redirect_url
+            return response
+        return redirect(redirect_url)
+
+
+class EventoMidiaBaseMixin(LoginRequiredMixin, NoSuperadminMixin):
+    model = EventoMidia
+
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+        if not _usuario_pode_gerenciar_portfolio(self.request.user, obj.evento):
+            raise PermissionDenied
+        return obj
+
+    def get_success_url(self):
+        return reverse("eventos:evento_detalhe", args=[self.object.evento.pk])
+
+
+class EventoPortfolioUpdateView(EventoMidiaBaseMixin, UpdateView):
+    form_class = EventoMediaForm
+    template_name = "eventos/portfolio/form.html"
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        _configure_portfolio_form_fields(form)
+        return form
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, _("Portfólio do evento atualizado."))
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["evento"] = self.object.evento
+        context["title"] = _("Editar portfólio do evento")
+        context["subtitle"] = self.object.descricao or ""
+        context["back_href"] = reverse("eventos:evento_detalhe", args=[self.object.evento.pk])
+        return context
+
+
+class EventoPortfolioDeleteView(EventoMidiaBaseMixin, DeleteView):
+    template_name = "eventos/portfolio/confirm_delete.html"
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if request.headers.get("HX-Target") == "modal":
+            context = {
+                "media": self.object,
+                "titulo": _("Remover item do portfólio"),
+                "mensagem": _("Tem certeza que deseja remover este item do portfólio do evento?"),
+                "submit_label": _("Remover"),
+                "form_action": reverse("eventos:evento_portfolio_delete", args=[self.object.pk]),
+            }
+            return TemplateResponse(request, "eventos/portfolio/delete_modal.html", context)
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["back_href"] = reverse("eventos:evento_detalhe", args=[self.object.evento.pk])
+        context["evento"] = self.object.evento
+        return context
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        messages.success(request, _("Item do portfólio removido."))
+        response = super().delete(request, *args, **kwargs)
+        if bool(request.headers.get("HX-Request")):
+            hx_response = HttpResponse(status=204)
+            hx_response["HX-Redirect"] = self.get_success_url()
+            return hx_response
+        return response
+
+class EventoSubscribeView(EventoInscricaoActionMixin, LoginRequiredMixin, NoSuperadminMixin, View):
+    def post(self, request, pk):  # pragma: no cover
+        evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+        if evento.status != Evento.Status.ATIVO:
+            messages.error(
+                request,
+                _("Inscrições disponíveis apenas para eventos ativos."),
+            )
+            return self._redirect(request, pk)
+        if _get_tipo_usuario(request.user) == UserType.ADMIN.value:
+            messages.error(request, _("Administradores não podem se inscrever em eventos."))  # pragma: no cover
+            return self._redirect(request, pk)
+        resultado = processar_inscricao_evento(
+            evento=evento,
+            user=request.user,
+            remover_se_falhar_confirmacao=True,
+        )
+        getattr(messages, resultado.status)(request, resultado.message)
+        return redirect(
+            reverse(
+                "eventos:inscricao_resultado",
+                kwargs={"uuid": resultado.inscricao.uuid},
+            )
+        )
+
+
+class EventoCancelSubscriptionView(EventoInscricaoActionMixin, LoginRequiredMixin, NoSuperadminMixin, View):
+    def post(self, request, pk):  # pragma: no cover
+        evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+        if evento.status != Evento.Status.ATIVO:
+            messages.error(
+                request,
+                _("Inscrições disponíveis apenas para eventos ativos."),
+            )
+            return self._redirect(request, pk)
+        if _get_tipo_usuario(request.user) == UserType.ADMIN.value:
+            messages.error(request, _("Administradores não podem cancelar inscrições."))
+            return self._redirect(request, pk)
+
+        try:
+            inscricao = InscricaoEvento.objects.get(
+                user=request.user,
+                evento=evento,
+            )
+        except InscricaoEvento.DoesNotExist:
+            if InscricaoEvento.all_objects.filter(
+                user=request.user,
+                evento=evento,
+                deleted=True,
+            ).exists():
+                messages.info(request, _("Inscrição já cancelada."))
+            else:
+                messages.error(request, _("Nenhuma inscrição ativa encontrada."))
+            return self._redirect(request, pk)
+
+        if inscricao.status == "cancelada":
+            messages.info(request, _("Inscrição já cancelada."))
+            return self._redirect(request, pk)
+
+        try:
+            inscricao.cancelar_inscricao()
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, _("Inscrição cancelada."))
+        return self._redirect(request, pk)
+
+
+class EventoCancelarInscricaoModalView(LoginRequiredMixin, NoSuperadminMixin, View):
+    template_name = "eventos/partials/evento_cancelar_inscricao_modal.html"
+
+    def get(self, request, pk):  # pragma: no cover - interface simples
+        if request.headers.get("HX-Target") != "modal":
+            return redirect("eventos:evento_detalhe", pk=pk)
+
+        evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+
+        if _get_tipo_usuario(request.user) == UserType.ADMIN.value:
+            return HttpResponseForbidden(_("Administradores não podem cancelar inscrições."))
+
+        inscricao = get_object_or_404(
+            InscricaoEvento,
+            user=request.user,
+            evento=evento,
+            status="confirmada",
+        )
+
+        if inscricao.pagamento_validado:
+            return HttpResponseForbidden(
+                _("Não é possível cancelar após a validação do pagamento."),
+            )
+
+        context = {
+            "evento": evento,
+            "titulo": _("Cancelar inscrição"),
+            "mensagem": _(
+                "Tem certeza que deseja cancelar sua inscrição no evento %(evento)s?"
+            )
+            % {"evento": evento.titulo},
+            "submit_label": _("Cancelar inscrição"),
+            "form_action": reverse("eventos:evento_cancelar_inscricao", args=[evento.pk]),
+        }
+
+        return TemplateResponse(request, self.template_name, context)
+
+
+class EventoRemoverInscritoModalView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    View,
+):
+    template_name = "eventos/partials/evento_remover_inscricao_modal.html"
+
+    def get(self, request, pk, user_id):  # pragma: no cover - interface simples
+        if request.headers.get("HX-Target") != "modal":
+            return redirect("eventos:evento_detalhe", pk=pk)
+
+        evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+        tipo_usuario = _get_tipo_usuario(request.user)
+        if (
+            tipo_usuario
+            in {
+                UserType.ADMIN.value,
+                UserType.COORDENADOR.value,
+                UserType.OPERADOR.value,
+            }
+            and evento.organizacao != getattr(request.user, "organizacao", None)
+        ):
+            return HttpResponseForbidden(_("Acesso negado."))
+
+        inscrito = get_object_or_404(User, pk=user_id)
+        get_object_or_404(
+            InscricaoEvento,
+            user=inscrito,
+            evento=evento,
+            deleted=False,
+        )
+
+        inscrito_nome = getattr(inscrito, "display_name", None) or inscrito.get_username()
+        context = {
+            "evento": evento,
+            "titulo": _("Excluir inscrição"),
+            "mensagem": _(
+                "Tem certeza que deseja excluir a inscrição de %(inscrito)s no evento %(evento)s?"
+            )
+            % {"inscrito": inscrito_nome, "evento": evento.titulo},
+            "submit_label": _("Excluir inscrição"),
+            "cancel_label": _("Manter inscrição"),
+            "form_action": reverse(
+                "eventos:evento_remover_inscrito",
+                args=[evento.pk, inscrito.pk],
+            ),
+        }
+
+        return TemplateResponse(request, self.template_name, context)
+
+
+class EventoRemoveInscritoView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    View,
+):
+    def post(self, request, pk, user_id):  # pragma: no cover
+        is_htmx = bool(request.headers.get("HX-Request"))
+        evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+        tipo_usuario = _get_tipo_usuario(request.user)
+        if (
+            tipo_usuario
+            in {
+                UserType.ADMIN.value,
+                UserType.COORDENADOR.value,
+                UserType.OPERADOR.value,
+            }
+            and evento.organizacao != request.user.organizacao
+        ):
+            messages.error(request, _("Acesso negado."))  # pragma: no cover
+            return redirect("eventos:calendario")
+        inscrito = get_object_or_404(User, pk=user_id)
+        inscricao = get_object_or_404(InscricaoEvento, user=inscrito, evento=evento)
+
+        try:
+            inscricao.cancelar_inscricao()
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            if is_htmx:
+                response = HttpResponse(
+                    render_to_string("_partials/toasts.html", request=request)
+                )
+                response["HX-Trigger"] = json.dumps({"modal:close": True})
+                return response
+            return redirect("eventos:evento_detalhe", pk=pk)
+
+        EventoLog.objects.create(
+            evento=evento,
+            usuario=request.user,
+            acao="inscricao_removida",
+            detalhes={"inscrito_id": inscrito.id},
+        )
+        if is_htmx:
+            inscritos_view = EventoInscritosPartialView()
+            inscritos_view.request = request
+            inscritos_view.object = evento
+            inscritos_view.kwargs = {"pk": pk}
+            context = inscritos_view.get_context_data(object=evento)
+            html = render_to_string(
+                "eventos/partials/inscritos_list.html", context, request=request
+            )
+            response = HttpResponse(html)
+            response["HX-Retarget"] = "#inscritos-list"
+            response["HX-Reswap"] = "innerHTML"
+            response["HX-Trigger"] = json.dumps(
+                {"modal:close": True, "inscritos:refresh": True}
+            )
+            return response
+        messages.success(request, _("Inscrito removido."))  # pragma: no cover
+        return redirect("eventos:evento_detalhe", pk=pk)
+
+
+class InscricaoEventoUpdateView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOperatorOrCoordinatorRequiredMixin,
+    UpdateView,
+):
+    model = InscricaoEvento
+    form_class = InscricaoEventoForm
+    template_name = "eventos/inscricoes/inscricao_form.html"
+    slug_field = "uuid"
+    slug_url_kwarg = "uuid"
+
+    def get_queryset(self):
+        eventos_qs = _queryset_por_organizacao(self.request)
+        return build_inscricao_update_queryset(
+            InscricaoEvento.objects,
+            eventos_qs,
+        )
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs.update(build_inscricao_form_kwargs(self.object))
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        evento = self.object.evento
+        fallback = reverse("eventos:evento_detalhe", kwargs={"pk": evento.pk})
+        context.update(build_inscricao_update_context(
+            evento=evento,
+            back_href=resolve_back_href(self.request, fallback=fallback),
+            valor_evento_usuario=evento.get_valor_para_usuario(user=self.object.user),
+        )
+        )
+        return context
+
+    def form_valid(self, form):
+        valor_evento = form.instance.evento.get_valor_para_usuario(user=form.instance.user)
+        form.instance.valor_pago = resolve_inscricao_valor_pago(
+            valor_evento_usuario=valor_evento,
+            valor_pago_atual=form.instance.valor_pago,
+        )
+        messages.success(self.request, _("Inscrição atualizada com sucesso."))
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy(
+            "eventos:evento_detalhe", kwargs={"pk": self.object.evento.pk}
+        )
+
+
+class InscricaoTogglePagamentoValidacaoView(
+    LoginRequiredMixin,
+    NoSuperadminMixin,
+    AdminOrOperatorRequiredMixin,
+    View,
+):
+    template_name = "eventos/partials/financeiro_validacao_button.html"
+
+    def post(self, request, uuid):
+        inscricao = get_object_or_404(
+            InscricaoEvento.objects.select_related("evento", "user"),
+            uuid=uuid,
+            deleted=False,
+        )
+        tipo_usuario = _get_tipo_usuario(request.user)
+        if not can_toggle_pagamento_validacao(
+            tipo_usuario=tipo_usuario,
+            user_organizacao_id=getattr(request.user, "organizacao_id", None),
+            evento_organizacao_id=getattr(inscricao.evento, "organizacao_id", None),
+        ):
+            raise PermissionDenied
+
+        inscricao.pagamento_validado = toggle_pagamento_validado_status(
+            pagamento_validado_atual=inscricao.pagamento_validado
+        )
+        inscricao.save(update_fields=["pagamento_validado", "updated_at"])
+
+        if request.headers.get("HX-Request"):
+            context = {"inscricao": inscricao}
+            return TemplateResponse(request, self.template_name, context)
+
+        if inscricao.pagamento_validado:
+            messages.success(request, _("Pagamento validado com sucesso."))
+        else:
+            messages.info(request, _("Validação de pagamento revertida."))
+
+        return redirect("eventos:evento_detalhe", inscricao.evento.pk)
+
+
+class EventoFeedbackView(LoginRequiredMixin, NoSuperadminMixin, View):
+    def get(self, request, pk):
+        evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+        usuario = request.user
+        inscricao_confirmada = InscricaoEvento.objects.filter(
+            user=usuario, evento=evento, status="confirmada"
+        ).exists()
+        if not inscricao_confirmada:
+            return HttpResponseForbidden("Apenas inscritos podem enviar feedback.")
+        if not can_user_rate_event(
+            inscricao_confirmada=inscricao_confirmada,
+            evento_data_fim=evento.data_fim,
+            now=timezone.now(),
+        ):
+            return HttpResponseForbidden("Feedback só pode ser enviado após o evento.")
+        fallback = reverse("eventos:evento_detalhe", kwargs={"pk": evento.pk})
+        context = {
+            "evento": evento,
+            "title": _("Avaliar evento"),
+            "subtitle": evento.descricao,
+            "form": FeedbackForm(),
+            "back_href": resolve_back_href(request, fallback=fallback),
+        }
+        return TemplateResponse(request, "eventos/avaliacao_form.html", context)
+
+    def post(self, request, pk):
+        evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+        usuario = request.user
+        inscricao_confirmada = InscricaoEvento.objects.filter(
+            user=usuario, evento=evento, status="confirmada"
+        ).exists()
+        if not inscricao_confirmada:
+            return HttpResponseForbidden("Apenas inscritos podem enviar feedback.")
+        if not can_user_rate_event(
+            inscricao_confirmada=inscricao_confirmada,
+            evento_data_fim=evento.data_fim,
+            now=timezone.now(),
+        ):
+            return HttpResponseForbidden("Feedback só pode ser enviado após o evento.")
+        nota, erro_nota = parse_feedback_nota(request.POST.get("nota"))
+        if erro_nota:
+            return HttpResponseForbidden(erro_nota)
+        if FeedbackNota.objects.filter(evento=evento, usuario=usuario).exists():
+            return HttpResponseForbidden("Feedback já enviado.")
+        FeedbackNota.objects.create(
+            evento=evento,
+            usuario=usuario,
+            nota=nota,
+            comentario=request.POST.get("comentario", ""),
+        )
+        EventoLog.objects.create(
+            evento=evento,
+            usuario=usuario,
+            acao="avaliacao_registrada",
+            detalhes={"nota": nota},
+        )
+        messages.success(request, _("Feedback registrado com sucesso."))
+        return redirect("eventos:evento_detalhe", pk=pk)
+
+
+# ---------------------------------------------------------------------------
+# Listagem / criação de inscrições
+# ---------------------------------------------------------------------------
+
+
+class InscricaoEventoListView(LoginRequiredMixin, NoSuperadminMixin, GerenteRequiredMixin, ListView):
+    model = InscricaoEvento
+    template_name = "eventos/inscricoes/inscricao_list.html"
+    context_object_name = "inscricoes"
+
+    def get_queryset(self):
+        qs = InscricaoEvento.objects.select_related("user", "evento")
+        qs = filter_eventos_por_usuario(qs, self.request.user, evento_field="evento")
+        q = self.request.GET.get("q")
+        if q:
+            qs = qs.filter(Q(user__username__icontains=q) | Q(evento__titulo__icontains=q))
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault("title", _("Inscrições"))
+        ev_id = self.request.GET.get("evento")
+        if ev_id:
+            try:
+                context["evento"] = _queryset_por_organizacao(self.request).get(pk=ev_id)
+                context["title"] = context["evento"].titulo
+                fallback = reverse("eventos:evento_detalhe", kwargs={"pk": context["evento"].pk})
+                context["back_href"] = resolve_back_href(self.request, fallback=fallback)
+            except Evento.DoesNotExist:
+                context["evento"] = None
+        return context
+
+
+class InscricaoEventoBaseView(LoginRequiredMixin, NoSuperadminMixin):
+    evento: Evento
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+
+        self.evento = get_object_or_404(_queryset_por_organizacao(request), pk=kwargs["pk"])
+        if _get_tipo_usuario(request.user) == UserType.ADMIN.value:
+            messages.error(request, _("Administradores não podem se inscrever em eventos."))
+            return redirect("eventos:evento_detalhe", pk=kwargs["pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_valor_evento_usuario(self):
+        return self.evento.get_valor_para_usuario(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault("evento", self.evento)
+        context.setdefault("title", self.evento.titulo)
+        fallback = reverse("eventos:evento_detalhe", kwargs={"pk": self.evento.pk})
+        context.setdefault("back_href", resolve_back_href(self.request, fallback=fallback))
+        context.setdefault("valor_evento_usuario", self.get_valor_evento_usuario())
+        return context
+
+
+class InscricaoEventoCreateView(InscricaoEventoBaseView, CreateView):
+    model = InscricaoEvento
+    form_class = InscricaoEventoForm
+    template_name = "eventos/inscricoes/inscricao_form.html"
+
+    def _redirect_to_result(self, status: str = "success", message: str | None = None):
+        params = {"status": status}
+        if message:
+            params["message"] = message
+        url = reverse(
+            "eventos:inscricao_resultado", kwargs={"uuid": self.object.uuid}
+        )
+        if params:
+            url = f"{url}?{urlencode(params)}"
+        return redirect(url)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["evento"] = self.evento
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault("show_comprovante_pagamento", False)
+        return context
+
+    def form_valid(self, form):
+        resultado = processar_inscricao_evento(
+            evento=self.evento,
+            user=self.request.user,
+            valor_pago=form.cleaned_data.get("valor_pago"),
+            metodo_pagamento=form.cleaned_data.get("metodo_pagamento"),
+            comprovante_pagamento=form.cleaned_data.get("comprovante_pagamento"),
+        )
+        self.object = resultado.inscricao
+        getattr(messages, resultado.status)(self.request, resultado.message)
+        return self._redirect_to_result(status=resultado.status, message=resultado.message)
+
+    def get_success_url(self):
+        return reverse_lazy(
+            "eventos:inscricao_resultado", kwargs={"uuid": self.object.uuid}
+        )
+
+
+class InscricaoEventoOverviewView(InscricaoEventoBaseView, TemplateView):
+    template_name = "eventos/inscricoes/inscricao_overview.html"
+
+    def _evento_pago(self, valor_evento_usuario: Decimal | None) -> bool:
+        if getattr(self.evento, "gratuito", False):
+            return False
+        if valor_evento_usuario is None:
+            return False
+        return Decimal(valor_evento_usuario) > 0
+
+    def _build_cta_url(
+        self, is_pago: bool, inscricao: InscricaoEvento | None = None
+    ) -> str:
+        if is_pago:
+            if inscricao:
+                base_url = reverse(
+                    "eventos:inscricao_pagamento_checkout",
+                    kwargs={"uuid": inscricao.uuid},
+                )
+            else:
+                base_url = reverse(
+                    "eventos:inscricao_pagamentos_criar", kwargs={"pk": self.evento.pk}
+                )
+        else:
+            base_url = reverse("eventos:evento_subscribe", kwargs={"pk": self.evento.pk})
+
+        querystring = self.request.GET.urlencode()
+        if querystring:
+            return f"{base_url}?{querystring}"
+        return base_url
+
+    def _build_pagamento_url(
+        self, fluxo: str, inscricao: InscricaoEvento | None = None
+    ) -> str:
+        if fluxo == "pix":
+            base_url = reverse("pagamentos:pix-checkout")
+        else:
+            base_url = reverse("pagamentos:faturamento-checkout")
+
+        params = {}
+        if inscricao:
+            params["inscricao_uuid"] = inscricao.uuid
+
+        querystring = urlencode(params)
+        if querystring:
+            return f"{base_url}?{querystring}"
+        return base_url
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        valor_evento_usuario = context.get("valor_evento_usuario")
+        if valor_evento_usuario is None:
+            valor_evento_usuario = self.get_valor_evento_usuario()
+
+        form_overview = InscricaoEventoForm(evento=self.evento, user=self.request.user)
+        metodo_pagamento_field = None
+        if "metodo_pagamento" in form_overview.fields:
+            form_overview.fields["metodo_pagamento"].disabled = True
+            form_overview.fields["metodo_pagamento"].required = False
+            metodo_pagamento_field = form_overview["metodo_pagamento"]
+
+        evento_pago = self._evento_pago(valor_evento_usuario)
+        inscricao_existente = (
+            InscricaoEvento.all_objects.filter(
+                user=self.request.user, evento=self.evento
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        context.update(
+            {
+                "valor_evento_usuario": valor_evento_usuario,
+                "metodo_pagamento_field": metodo_pagamento_field,
+                "evento_pago": evento_pago,
+                "cta_label": _("Efetuar pagamento") if evento_pago else _("Confirmar inscrição"),
+                "cta_url": self._build_cta_url(evento_pago, inscricao_existente),
+                "inscricao_existente": inscricao_existente,
+                "pix_checkout_url": (
+                    self._build_pagamento_url("pix", inscricao_existente)
+                    if evento_pago
+                    else None
+                ),
+                "faturamento_checkout_url": (
+                    self._build_pagamento_url("faturamento", inscricao_existente)
+                    if evento_pago
+                    else None
+                ),
+            }
+        )
+        return context
+
+
+class InscricaoEventoPagamentoCreateView(InscricaoEventoCreateView):
+    template_name = "eventos/inscricoes/inscricao_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        provider = MercadoPagoProvider.from_organizacao(self.evento.organizacao)
+
+        valor_evento = context.get("valor_evento_usuario")
+        if valor_evento is None:
+            valor_evento = self.evento.get_valor_para_usuario(user=self.request.user)
+
+        usuario = getattr(self.request, "user", None)
+        checkout_profile_data = build_checkout_profile_data(usuario)
+        initial_checkout = build_initial_checkout_data(
+            valor_evento=valor_evento,
+            checkout_profile_data=checkout_profile_data,
+            default_metodo=Transacao.Metodo.PIX,
+        )
+
+        context.update(
+            {
+                "checkout_form": PixCheckoutForm(
+                    self.request.POST or None,
+                    initial=initial_checkout,
+                    user=usuario,
+                    organizacao=self.evento.organizacao,
+                ),
+                "provider_public_key": provider.public_key,
+                "transacao": self._get_checkout_transacao(),
+                "checkout_profile_data": checkout_profile_data,
+            }
+        )
+        return context
+
+    def _evento_gratuito(self) -> bool:
+        return is_evento_gratuito(self.evento, self.request.user)
+
+    def _checkout_required(self, metodo_pagamento: str | None = None) -> bool:
+        return is_checkout_required(
+            evento=self.evento,
+            user=self.request.user,
+            provider_public_key=self.provider_public_key,
+            metodo_pagamento=metodo_pagamento,
+            pix_metodo=Transacao.Metodo.PIX,
+        )
+
+    @property
+    def provider_public_key(self) -> str | None:
+        provider = MercadoPagoProvider.from_organizacao(self.evento.organizacao)
+        return provider.public_key
+
+    def _get_checkout_transacao(self) -> Transacao | None:
+        transacao_id = self.request.POST.get("transacao_id")
+        if not transacao_id:
+            return None
+        try:
+            return Transacao.objects.get(pk=transacao_id)
+        except (TypeError, ValueError, Transacao.DoesNotExist):
+            return None
+
+
+    def form_valid(self, form):
+        transacao = self._get_checkout_transacao()
+        metodo_pagamento = resolve_metodo_pagamento(
+            transacao=transacao,
+            metodo_pagamento=form.cleaned_data.get("metodo_pagamento"),
+        )
+        form.cleaned_data["metodo_pagamento"] = metodo_pagamento
+
+        resultado = processar_inscricao_evento(
+            evento=self.evento,
+            user=self.request.user,
+            valor_pago=form.cleaned_data.get("valor_pago"),
+            metodo_pagamento=metodo_pagamento,
+            comprovante_pagamento=form.cleaned_data.get("comprovante_pagamento"),
+            transacao=transacao,
+            exigir_checkout_aprovado=self._checkout_required(metodo_pagamento),
+        )
+        self.object = resultado.inscricao
+        getattr(messages, resultado.status)(self.request, resultado.message)
+        return self._redirect_to_result(status=resultado.status, message=resultado.message)
+
+
+class InscricaoEventoCheckoutView(LoginRequiredMixin, NoSuperadminMixin, TemplateView):
+    template_name = "pagamentos/pix_checkout.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+
+        self.inscricao = get_object_or_404(
+            InscricaoEvento.all_objects.select_related("evento", "user"),
+            uuid=kwargs.get("uuid"),
+        )
+        self.evento = self.inscricao.evento
+        if not can_user_access_checkout(
+            request_user=request.user,
+            inscricao_user=self.inscricao.user,
+            has_restricted_access=_usuario_tem_acesso_restrito_evento(request.user, self.evento),
+        ):
+            return HttpResponseForbidden()
+
+        transacao = getattr(self.inscricao, "transacao", None)
+        if should_redirect_after_checkout_approval(
+            transacao=transacao,
+            approved_status=Transacao.Status.APROVADA,
+        ):
+            return redirect(
+                reverse("eventos:inscricao_resultado", kwargs={"uuid": self.inscricao.uuid})
+            )
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def _evento_gratuito(self) -> bool:
+        return is_evento_gratuito(self.evento, self.inscricao.user)
+
+    def _checkout_required(self) -> bool:
+        provider = MercadoPagoProvider.from_organizacao(self.evento.organizacao)
+        return is_checkout_required(
+            evento=self.evento,
+            user=self.inscricao.user,
+            provider_public_key=provider.public_key,
+            inscricao_metodo_pagamento=getattr(self.inscricao, "metodo_pagamento", None),
+            pix_metodo=Transacao.Metodo.PIX,
+        )
+
+    def _get_checkout_transacao(self) -> Transacao | None:
+        transacao_id = self.request.POST.get("transacao_id")
+        if transacao_id:
+            try:
+                return Transacao.objects.get(pk=transacao_id)
+            except (TypeError, ValueError, Transacao.DoesNotExist):
+                return None
+        return getattr(self.inscricao, "transacao", None)
+
+    def _get_initial_checkout(self) -> dict[str, Any]:
+        valor_evento = self.evento.get_valor_para_usuario(user=self.inscricao.user)
+        usuario = getattr(self.inscricao, "user", None)
+        checkout_profile_data = build_checkout_profile_data(usuario)
+        return build_initial_checkout_data(
+            valor_evento=valor_evento,
+            checkout_profile_data=checkout_profile_data,
+            default_metodo=Transacao.Metodo.PIX,
+            inscricao_uuid=self.inscricao.uuid,
+        )
+
+    def _get_checkout_form(self) -> PixCheckoutForm:
+        form = PixCheckoutForm(
+            self.request.POST or None,
+            initial=self._get_initial_checkout(),
+            user=getattr(self, "inscricao", None) and self.inscricao.user,
+            organizacao=self.evento.organizacao,
+        )
+        metodo_field = form.fields.get("metodo")
+        if metodo_field:
+            metodo_field.choices = [(Transacao.Metodo.PIX, Transacao.Metodo.PIX.label)]
+            form.initial["metodo"] = Transacao.Metodo.PIX
+        parcelas_field = form.fields.get("parcelas")
+        if parcelas_field:
+            parcelas_field.max_value = 3
+            parcelas_field.widget.attrs["max"] = 3
+            parcelas_field.help_text = _("Associados podem parcelar em até 3 vezes.")
+        return form
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        provider = MercadoPagoProvider.from_organizacao(self.evento.organizacao)
+        transacao = self._get_checkout_transacao()
+        context.update(
+            {
+                "form": self._get_checkout_form(),
+                "provider_public_key": provider.public_key,
+                "transacao": transacao,
+                "inscricao": self.inscricao,
+                "evento": self.evento,
+            }
+        )
+        return context
+
+    def get_success_url(self):
+        return reverse(
+            "eventos:inscricao_pagamento_checkout",
+            kwargs={"uuid": self.inscricao.uuid},
+        )
+
+    def _redirect_to_result(self):
+        return redirect(
+            reverse("eventos:inscricao_resultado", kwargs={"uuid": self.inscricao.uuid})
+        )
+
+    def post(self, request, *args, **kwargs):
+        transacao = self._get_checkout_transacao()
+        metodo = request.POST.get("metodo_pagamento") or getattr(transacao, "metodo", None)
+
+        if should_block_checkout_without_confirmation(
+            checkout_required=self._checkout_required(),
+            transacao=transacao,
+            metodo_pagamento=metodo,
+        ):
+            messages.error(
+                request,
+                _("Finalize o checkout do pagamento antes de confirmar a inscrição."),
+            )
+            return redirect(self.get_success_url())
+
+        valor_evento = self.evento.get_valor_para_usuario(user=self.inscricao.user)
+        updates = build_checkout_inscricao_updates(
+            valor_evento=valor_evento,
+            transacao=transacao,
+            metodo_pagamento=metodo,
+            approved_status=Transacao.Status.APROVADA,
+        )
+        for field, value in updates.items():
+            setattr(self.inscricao, field, value)
+
+        self.inscricao.save()
+
+        if should_confirm_checkout_inscricao(
+            transacao=transacao,
+            approved_status=Transacao.Status.APROVADA,
+        ):
+            try:
+                self.inscricao.confirmar_inscricao()
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect(self.get_success_url())
+            messages.success(request, _("Inscrição confirmada após aprovação do pagamento."))
+            return self._redirect_to_result()
+
+        messages.info(
+            request,
+            _("Pagamento iniciado. Confirmaremos a inscrição após a aprovação."),
+        )
+        return redirect(self.get_success_url())
+
+
+@login_required
+@no_superadmin_required
+def inscricao_resultado(request, uuid: str):
+    inscricao = get_object_or_404(
+        InscricaoEvento.objects.select_related("evento", "user"), uuid=uuid
+    )
+    evento = inscricao.evento
+
+    if request.user != inscricao.user and not _usuario_tem_acesso_restrito_evento(
+        request.user, evento
+    ):
+        return HttpResponseForbidden()
+
+    status = request.GET.get("status", "success")
+    message = request.GET.get("message")
+    context = build_inscricao_result_context(
+        request=request,
+        inscricao=inscricao,
+        status=status,
+        message=message,
+        title=_("Status da inscrição"),
+    )
+    return TemplateResponse(request, "eventos/inscricoes/resultado.html", context)
+
+
+# ---------------------------------------------------------------------------
+# Check-in de inscrições (reintroduzido após refatoração)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@no_superadmin_required
+def checkin_form(request, pk: int):
+    """Exibe a página de check-in para uma inscrição específica.
+
+    A URL usa o PK da inscrição. Validamos que o usuário pertence à mesma
+    organização do evento. Permitimos acesso ao próprio inscrito ou a usuários
+    de staff (ADMIN / COORDENADOR / GERENTE) da mesma organização. Outros
+    recebem 403.
+    """
+    inscricao = get_object_or_404(InscricaoEvento.objects.select_related("evento", "user"), pk=pk)
+    evento = inscricao.evento
+    user = request.user
+    if not user_can_access_checkin_form(
+        evento=evento,
+        user=user,
+        inscricao=inscricao,
+        tipo_usuario=_get_tipo_usuario(user),
+    ):
+        return HttpResponseForbidden()
+    context = build_checkin_form_context(
+        evento=evento,
+        inscricao=inscricao,
+        title=_("Check-in do evento"),
+        subtitle=evento.descricao,
+    )
+    return TemplateResponse(request, "eventos/inscricoes/checkin_form.html", context)
+
+
+@login_required
+@no_superadmin_required
+def checkin_inscricao(request, pk: int):
+    """Endpoint API (POST) para realizar o check-in.
+
+    Espera um campo 'codigo' que contenha o identificador do QRCode no formato
+    gerado em InscricaoEvento. Faz validações mínimas e marca presença.
+    Retorna JSON com status.
+    """
+    if not checkin_requires_post(request.method):  # pragma: no cover - apenas POST suportado
+        return HttpResponseBadRequest("Método não suportado.")
+    inscricao = get_object_or_404(InscricaoEvento.objects.select_related("evento", "user"), pk=pk)
+    evento = inscricao.evento
+    user = request.user
+    if not user_can_execute_checkin(evento=evento, user=user):
+        return HttpResponseForbidden()
+    codigo = request.POST.get("codigo", "").strip()
+    codigo_valido, erro = validate_checkin_codigo(
+        codigo=codigo,
+        inscricao_pk=inscricao.pk,
+        checksum_generator=InscricaoEvento.gerar_checksum,
+    )
+    if not codigo_valido:
+        return HttpResponseBadRequest(erro or "Código inválido.")
+    if not is_inscricao_confirmada(inscricao.status):
+        return HttpResponseBadRequest("Inscrição não está confirmada.")
+    if inscricao.check_in_realizado_em:
+        return JsonResponse(build_checkin_success_payload(already_done=True))
+    inscricao.realizar_check_in()
+    return JsonResponse(build_checkin_success_payload(already_done=False))
+
+
+# ---------------------------------------------------------------------------
+# Convites para eventos
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@no_superadmin_required
+def convite_create(request, evento_id):
+    queryset = _queryset_por_organizacao(request)
+    evento = get_object_or_404(queryset, pk=evento_id)
+
+    if not can_user_manage_convites(_get_tipo_usuario(request.user)):
+        raise PermissionDenied()
+
+    if request.method == "POST":
+        form = ConviteEventoForm(request.POST, request.FILES, evento=evento)
+        if form.is_valid():
+            convite = form.save(commit=False)
+            convite.evento = evento
+            convite.save()
+            convite_url = request.build_absolute_uri(
+                reverse("eventos:convite_public", args=[convite.short_code])
+            )
+            messages.success(
+                request,
+                _("Convite pronto para envio. Link público: %(link)s")
+                % {"link": convite_url},
+            )
+            return redirect(reverse("eventos:evento_detalhe", kwargs={"pk": evento.pk}))
+    else:
+        form = ConviteEventoForm(evento=evento)
+
+    fallback_url = reverse("eventos:evento_detalhe", kwargs={"pk": evento.pk})
+    back_href = resolve_back_href(request, fallback=fallback_url)
+    context = build_convite_create_context(
+        evento=evento,
+        form=form,
+        back_href=back_href,
+        fallback_url=fallback_url,
+    )
+
+    return TemplateResponse(request, "eventos/convites/form.html", context)
+
+
+def convite_public_view(request, short_code):
+    convite = get_object_or_404(
+        Convite.objects.select_related("evento"), short_code=short_code
+    )
+    evento = convite.evento
+    inscricao_url = reverse("eventos:inscricao_overview", args=[evento.pk])
+    share_url = request.build_absolute_uri(
+        reverse("eventos:convite_public", args=[convite.short_code])
+    )
+
+    if request.method == "POST":
+        form = PublicInviteEmailForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data["email"]
+            if User.objects.filter(email__iexact=email).exists():
+                login_url = build_login_redirect_url(
+                    login_url=reverse("accounts:login"),
+                    inscricao_url=inscricao_url,
+                )
+                return redirect(login_url)
+            preregistro, codigo = _criar_token_convite_publico(evento, email)
+            if not preregistro or not codigo:
+                messages.error(request, _("Não foi possível gerar um token para o seu cadastro."))
+                return redirect("tokens:token")
+
+            request.session["email"] = email
+            request.session["invite_event_id"] = str(evento.pk)
+
+            register_url = build_register_url(
+                token_url=reverse("tokens:token"),
+                evento_pk=evento.pk,
+                codigo=codigo,
+            )
+            token_link = request.build_absolute_uri(register_url)
+
+            email_context = build_public_invite_email_context(
+                evento=evento,
+                codigo=codigo,
+                token_link=token_link,
+            )
+            subject = build_public_invite_email_subject(evento_titulo=evento.titulo)
+            body = render_to_string("eventos/emails/public_invite.txt", email_context)
+            send_email(SimpleNamespace(email=email), subject, body)
+            preregistro.marcar_enviado()
+            messages.success(
+                request,
+                _("Enviamos um token para o seu e-mail. Verifique sua caixa de entrada para continuar."),
+            )
+            info_context = build_public_invite_info_context(
+                convite=convite,
+                evento=evento,
+                email=email,
+                share_url=share_url,
+                register_url=register_url,
+            )
+            return TemplateResponse(
+                request, "eventos/convites/public_info.html", info_context
+            )
+    else:
+        form = PublicInviteEmailForm(
+            initial={"email": request.session.get("email", "")}
+        )
+
+    contexto = build_public_invite_page_context(
+        convite=convite,
+        evento=evento,
+        inscricao_url=inscricao_url,
+        share_url=share_url,
+        form=form,
+    )
+    return TemplateResponse(request, "eventos/convites/public.html", contexto)
+
+
+# ---------------------------------------------------------------------------
+# API Orçamento do Evento (reintroduzido para compatibilidade com testes/rotas)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@no_superadmin_required
+def evento_orcamento(request, pk):
+    """Atualiza campos de orçamento do evento via POST.
+
+    Espera `orcamento_estimado` e/ou `valor_gasto` (Decimal). Registra log de
+    alterações e retorna JSON. Em caso de validação inválida retorna 400 com
+    detalhes.
+    """
+    if request.method != "POST":  # pragma: no cover
+        return HttpResponseBadRequest("Método não suportado.")
+    evento = get_object_or_404(_queryset_por_organizacao(request), pk=pk)
+    user = request.user
+    tipo_usuario = _get_tipo_usuario(user)
+    if not user_can_manage_evento_orcamento(tipo_usuario):
+        return HttpResponseForbidden()
+    dados, errors = parse_orcamento_payload(request.POST)
+    if errors:
+        return JsonResponse({"errors": errors}, status=400)
+    alteracoes, update_fields = apply_orcamento_changes(evento, dados)
+    if should_persist_orcamento_changes(alteracoes):
+        evento.save(update_fields=[*update_fields, "updated_at"])
+        EventoLog.objects.create(
+            evento=evento,
+            usuario=user,
+            acao="orcamento_atualizado",
+            detalhes=alteracoes,
+        )
+    return JsonResponse(build_orcamento_success_payload(alteracoes))
+
+
+# ---------------------------------------------------------------------------
+# API auxiliar: eventos por dia (para calendário / testes)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@no_superadmin_required
+def eventos_por_dia(request):
+    """Retorna (HTML parcial ou completo) a lista de eventos para um dia ISO.
+
+    Query param: ?dia=YYYY-MM-DD
+    Se HTMX (HX-Request), retorna apenas o fragmento de lista.
+    Caso contrário, retorna página simples reutilizando template parcial.
+    """
+    dia, erro = parse_dia_iso(request.GET.get("dia"))
+    if erro:
+        return HttpResponseBadRequest(erro)
+    if not user_can_view_eventos_por_dia(getattr(request.user, "user_type", None)):
+        return HttpResponseForbidden()
+    eventos = (
+        _queryset_por_organizacao(request)
+        .filter(data_inicio__date=dia)
+        .select_related("organizacao", "nucleo")
+        .prefetch_related("inscricoes")
+        .order_by("data_inicio")
+    )
+    context = build_eventos_por_dia_context(
+        dia=dia,
+        eventos=list(eventos),
+        title=_("Eventos"),
+        subtitle=None,
+    )
+    template = get_eventos_por_dia_template()
+    return TemplateResponse(request, template, context)

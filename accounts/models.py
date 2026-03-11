@@ -1,0 +1,792 @@
+# accounts/models.py
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import secrets
+import posixpath
+from pathlib import Path
+import uuid
+
+from django.conf import settings
+from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import UserManager as DjangoUserManager
+from django.contrib.auth.validators import UnicodeUsernameValidator
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+from django.db.models import Q
+from django.db.models import PROTECT, SET_NULL
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from phonenumber_field.modelfields import PhoneNumberField
+
+from core.fields import EncryptedCharField, EncryptedTextField
+from core.models import SoftDeleteModel, TimeStampedModel
+from core.uploads.validators import validate_upload
+from organizacoes.utils import validate_cnpj
+
+from .validators import cpf_validator
+
+
+# --- BEGIN: Área de atuação (choices) ---
+AREA_ATUACAO_CHOICES = [
+    ("tecnologia", "Tecnologia da Informação"),
+    ("comercio", "Comércio e Varejo"),
+    ("industria", "Indústria e Produção"),
+    ("construcao", "Construção Civil e Engenharia"),
+    ("educacao", "Educação e Treinamento"),
+    ("saude", "Saúde e Bem-Estar"),
+    ("alimentacao", "Alimentação e Gastronomia"),
+    ("agro", "Agropecuária e Meio Ambiente"),
+    ("financeiro", "Serviços Financeiros e Contábeis"),
+    ("juridico", "Serviços Jurídicos"),
+    ("marketing", "Marketing, Comunicação e Mídia"),
+    ("transporte", "Transporte e Logística"),
+    ("servicos", "Serviços Gerais e Terceirização"),
+    ("turismo", "Turismo, Hotelaria e Eventos"),
+    ("imobiliario", "Mercado Imobiliário"),
+    ("publico", "Setor Público e Governamental"),
+    ("social", "Associações, ONGs e Projetos Sociais"),
+    ("outros", "Outros Setores"),
+]
+# --- END: Área de atuação (choices) ---
+
+
+def generate_secure_token() -> str:
+    """Retorna um token seguro com entropia >= 128 bits."""
+    return secrets.token_urlsafe(32)
+
+
+class UserQuerySet(models.QuerySet):
+    def filter_current_org(self, organizacao):
+        return self.filter(organizacao=organizacao)
+
+
+class UserType(models.TextChoices):
+    ROOT = "root", "Root"
+    ADMIN = "admin", "Admin"
+    COORDENADOR = "coordenador", "Coordenador"
+    NUCLEADO = "nucleado", "Nucleado"
+    ASSOCIADO = "associado", "Associado"
+    CONVIDADO = "convidado", "Convidado"
+    OPERADOR = "operador", "Operador"
+    CONSULTOR = "consultor", "Consultor"
+
+
+class CustomUserManager(DjangoUserManager.from_queryset(UserQuerySet)):
+    """User manager que utiliza o email como identificador principal."""
+
+    def _create_user(self, email: str, username: str, password: str | None, **extra_fields):
+        if not email:
+            raise ValueError("Users must have an email address")
+        email = self.normalize_email(email)
+        user = self.model(email=email, username=username, **extra_fields)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+        user.save(using=self._db)
+        return user
+
+    def create_user(
+        self,
+        email: str,
+        username: str,
+        password: str | None = None,
+        user_type: UserType = UserType.CONVIDADO,
+        **extra_fields,
+    ):
+        extra_fields.setdefault("user_type", user_type.value)
+        return self._create_user(email, username, password, **extra_fields)
+
+    def create_superuser(self, email: str, username: str, password: str, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("user_type", UserType.ROOT.value)
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+        return self._create_user(email, username, password, **extra_fields)
+
+    def get_by_natural_key(self, email: str):
+        return self.get(email__iexact=email)
+
+
+class SoftDeleteUserManager(CustomUserManager):
+    """Manager que oculta usuários marcados como deletados."""
+
+    def get_queryset(self):  # type: ignore[override]
+        return super().get_queryset().filter(deleted=False)
+
+
+class User(AbstractUser, TimeStampedModel, SoftDeleteModel):
+    """
+    Modelo de usuário customizado.
+    Herdamos de AbstractUser para manter toda a infraestrutura
+    (senha, permissões, is_staff, etc.) e apenas adicionamos campos extras.
+    """
+
+    username_validator = UnicodeUsernameValidator()
+    AREA_ATUACAO_CHOICES = AREA_ATUACAO_CHOICES
+
+    username = models.CharField(
+        _("username"),
+        max_length=150,
+        unique=True,
+        help_text=_("Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only."),
+        validators=[username_validator],
+        error_messages={"unique": _("A user with that username already exists.")},
+    )
+
+    email = models.EmailField(
+        _("email address"),
+        unique=True,
+        blank=False,
+        null=False,
+        db_index=True,
+    )
+
+    # Campos adicionais
+    phone_number = PhoneNumberField(
+        "Telefone",
+        region="BR",
+        blank=True,
+        null=True,
+        help_text="Ex.: +55 48 99999-0000",
+    )
+    contato = models.CharField("Contato", max_length=150, blank=True)
+    cpf = models.CharField(
+        "CPF",
+        max_length=14,  # 000.000.000-00
+        blank=True,
+        null=True,
+        validators=[cpf_validator],
+    )
+    cnpj = models.CharField(
+        "CNPJ",
+        max_length=18,
+        blank=True,
+        null=True,
+    )
+    razao_social = models.CharField("Razão Social", max_length=255, blank=True, null=True)
+    nome_fantasia = models.CharField("Nome fantasia", max_length=255, blank=True, null=True)
+    area_atuacao = models.CharField(
+        max_length=50,
+        choices=AREA_ATUACAO_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name="Área de atuação",
+    )
+    descricao_atividade = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Descrição da atividade",
+    )
+    biografia = models.TextField(blank=True)
+    cover = models.ImageField(upload_to="users/capas/", null=True, blank=True)
+    whatsapp = models.CharField(max_length=20, blank=True)
+    birth_date = models.DateField("Data de nascimento", blank=True, null=True)
+
+    # Identificador público estável (UUID) para uso em URLs
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True, editable=False)
+
+    # Campos migrados do antigo modelo Perfil
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    endereco = models.CharField(max_length=255, blank=True)
+    cidade = models.CharField(max_length=100, blank=True)
+    estado = models.CharField(max_length=2, blank=True)
+    cep = models.CharField(max_length=10, blank=True)
+    redes_sociais = models.JSONField(default=dict, blank=True, null=True)
+    idioma = models.CharField(max_length=10, blank=True)
+    fuso_horario = models.CharField(max_length=50, blank=True)
+    perfil_publico = models.BooleanField(default=True)
+    mostrar_email = models.BooleanField(default=True)
+    mostrar_telefone = models.BooleanField(default=False)
+    chave_publica = models.TextField("Chave pública", blank=True, null=True)
+
+    exclusao_confirmada = models.BooleanField(default=False)
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_secret = EncryptedTextField(blank=True, null=True)
+    two_factor_email_enabled = models.BooleanField(default=False)
+    two_factor_preferred_method = models.CharField(
+        max_length=20,
+        default="totp",
+        choices=(
+            ("totp", "Aplicativo autenticador"),
+            ("email_otp", "Código por e-mail"),
+        ),
+    )
+    email_confirmed = models.BooleanField(default=False)
+
+    user_type = models.CharField(
+        max_length=20,
+        choices=UserType.choices,
+        default=UserType.CONVIDADO,
+        verbose_name="Tipo de Usuário",
+    )
+
+    organizacao = models.ForeignKey(
+        "organizacoes.Organizacao",
+        on_delete=PROTECT,
+        related_name="users",
+        null=True,  # Alterado de False para True
+        blank=True,  # Permitir valores nulos
+        default=None,  # Removido o valor padrão inválido
+        verbose_name=_("Organização"),
+    )
+    is_associado = models.BooleanField(default=False, verbose_name=_("É associado"))
+    is_coordenador = models.BooleanField(default=False, verbose_name=_("É coordenador"))
+    nucleo = models.ForeignKey(
+        "nucleos.Nucleo",
+        on_delete=SET_NULL,
+        related_name="usuarios_principais",
+        null=True,
+        blank=True,
+        verbose_name=_("Núcleo"),
+    )
+
+    # Remove os campos herdados ``first_name`` e ``last_name`` do AbstractUser
+    first_name = None  # type: ignore[assignment]
+    last_name = None  # type: ignore[assignment]
+
+    objects = SoftDeleteUserManager()
+    all_objects = CustomUserManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS: list[str] = ["username"]
+
+    def get_full_name(self) -> str:
+        """Retorna apenas o campo de contato (``contato``)."""
+
+        contato = (self.contato or "").strip()
+        if contato:
+            return contato
+        return self.username or self.email
+
+    def get_short_name(self) -> str:
+        return self.get_full_name()
+
+    @property
+    def organizacao_display(self):
+        return self.organizacao
+
+    @organizacao_display.setter
+    def organizacao_display(self, value):
+        self.organizacao = value
+
+    def _get_prefetched_related(self, related_name: str):
+        cache = getattr(self, "_prefetched_objects_cache", None)
+        if cache and related_name in cache:
+            return cache[related_name]
+        return None
+
+    def _has_active_participacao(self, papel: str | None = None) -> bool:
+        participacoes_prefetched = self._get_prefetched_related("participacoes")
+        if participacoes_prefetched is not None:
+            for participacao in participacoes_prefetched:
+                if participacao.status != "ativo" or getattr(
+                    participacao, "status_suspensao", False
+                ):
+                    continue
+                if papel is None or participacao.papel == papel:
+                    return True
+            return False
+
+        participacoes_manager = getattr(self, "participacoes", None)
+        if participacoes_manager is None:
+            return False
+
+        filters: dict[str, object] = {"status": "ativo", "status_suspensao": False}
+        if papel is not None:
+            filters["papel"] = papel
+        return participacoes_manager.filter(**filters).exists()
+
+    def _has_consultoria_vinculo(self) -> bool:
+        consultoria_prefetched = self._get_prefetched_related("nucleos_consultoria")
+        if consultoria_prefetched is not None:
+            return any(True for _ in consultoria_prefetched)
+
+        consultoria_manager = getattr(self, "nucleos_consultoria", None)
+        if consultoria_manager is None:
+            return False
+        return consultoria_manager.exists()
+
+    @property
+    def get_tipo_usuario(self):
+        if self.is_superuser:
+            return UserType.ROOT.value
+
+        explicit_roles = {
+            UserType.ADMIN.value,
+            UserType.OPERADOR.value,
+            UserType.CONSULTOR.value,
+            UserType.COORDENADOR.value,
+        }
+        if self.user_type in explicit_roles:
+            return self.user_type
+
+        if self._has_consultoria_vinculo():
+            return UserType.CONSULTOR.value
+
+        if getattr(self, "is_coordenador", False) or self._has_active_participacao(
+            "coordenador"
+        ):
+            return UserType.COORDENADOR.value
+
+        if self._has_active_participacao("membro"):
+            return UserType.NUCLEADO.value
+
+        if getattr(self, "nucleo_id", None):
+            return UserType.NUCLEADO.value
+
+        if getattr(self, "is_associado", False) or self.user_type == UserType.ASSOCIADO.value:
+            return UserType.ASSOCIADO.value
+
+        return self.user_type
+
+    def save(self, *args, **kwargs):
+        if isinstance(self.cnpj, str) and not self.cnpj.strip():
+            self.cnpj = None
+        if self.cnpj:
+            self.cnpj = validate_cnpj(self.cnpj)
+        if self.user_type == UserType.ROOT.value:
+            self.nucleo = None  # Garantir que usuários root não interajam com núcleos
+        super().save(*args, **kwargs)
+
+    def clean(self):  # type: ignore[override]
+        super().clean()
+        if isinstance(self.cnpj, str) and not self.cnpj.strip():
+            self.cnpj = None
+        if self.cnpj:
+            self.cnpj = validate_cnpj(self.cnpj)
+
+    def delete(
+        self,
+        using: str | None = None,
+        keep_parents: bool = False,
+        *,
+        soft: bool = True,
+    ) -> None:  # type: ignore[override]
+        """Remove avatar e cover ao excluir definitivamente o usuário."""
+
+        if not soft:
+            if self.avatar:
+                self.avatar.delete(save=False)
+            if self.cover:
+                self.cover.delete(save=False)
+
+        super().delete(using=using, keep_parents=keep_parents, soft=soft)
+
+    @property
+    def avatar_url(self) -> str:
+        """Retorna a URL do avatar ou um placeholder."""
+        if self.avatar:
+            try:
+                return self.avatar.url
+            except Exception:  # pragma: no cover - fallback
+                pass
+        return "https://via.placeholder.com/160"
+
+    def get_contact_name(self) -> str:
+        """Nome utilizado para contato a partir do campo ``contato``."""
+
+        contato = (self.contato or "").strip()
+        return contato
+
+    @property
+    def contact_name(self) -> str:
+        return self.get_contact_name()
+
+    def get_display_name(self) -> str:
+        """Nome preferencial exibido para o usuário."""
+
+        candidates = (
+            self.nome_fantasia,
+            self.get_contact_name(),
+            self.username,
+            self.email,
+        )
+        for value in candidates:
+            if not value:
+                continue
+            if isinstance(value, str):
+                value = value.strip()
+            if value:
+                return str(value)
+        return ""
+
+    @property
+    def display_name(self) -> str:
+        return self.get_display_name()
+
+    def get_full_name(self) -> str:  # type: ignore[override]
+        return self.get_display_name()
+
+    # Relacionamentos sociais
+    connections = models.ManyToManyField("self", blank=True)
+    followers = models.ManyToManyField(
+        "self",
+        symmetrical=False,
+        related_name="following",
+        blank=True,
+    )
+
+    # Configurações de metadados
+    class Meta:
+        verbose_name = "Usuário"
+        verbose_name_plural = "Usuários"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cnpj"],
+                condition=Q(cnpj__isnull=False) & ~Q(cnpj=""),
+                name="accounts_user_unique_cnpj_when_present",
+            ),
+            models.UniqueConstraint(
+                fields=["cpf"],
+                condition=Q(cnpj__isnull=True) | Q(cnpj=""),
+                name="accounts_user_unique_cpf_without_cnpj",
+            ),
+        ]
+
+    # Representação legível
+    def __str__(self):
+        return self.get_full_name() or self.username
+
+    @property
+    def nucleos(self):
+        from nucleos.models import Nucleo
+
+        return Nucleo.objects.filter(participacoes__user=self, participacoes__status="ativo")
+
+
+class MediaTag(TimeStampedModel, SoftDeleteModel):
+    """Tags para categorizar mídias dos usuários."""
+
+    nome = models.CharField(max_length=50, unique=True)
+
+    class Meta:
+        verbose_name = "Tag de Mídia"
+        verbose_name_plural = "Tags de Mídia"
+
+    def __str__(self) -> str:  # pragma: no cover - simples
+        return self.nome
+
+
+class MidiaQuerySet(models.QuerySet):
+    """QuerySet personalizado para :class:`UserMedia`."""
+
+    def visible_to(self, viewer, owner):
+        """Retorna mídias visíveis ao ``viewer``.
+
+        Se ``viewer`` for o mesmo que ``owner`` (dono das mídias), todas as
+        mídias do ``owner`` são retornadas. Caso contrário, apenas as mídias
+        marcadas como públicas são incluídas.
+        """
+
+        qs = self.filter(user=owner)
+        if viewer == owner:
+            return qs
+        return qs.filter(publico=True)
+
+
+class UserMedia(TimeStampedModel, SoftDeleteModel):
+    """Arquivos de mídia (imagens, vídeos, PDFs) enviados pelo usuário."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="medias",
+    )
+    file = models.FileField(upload_to="user_media/")
+    descricao = models.CharField("Descrição", max_length=255, blank=True)
+    tags = models.ManyToManyField(MediaTag, related_name="medias", blank=True)
+    publico = models.BooleanField(default=True)
+
+    objects = MidiaQuerySet.as_manager()
+
+    @property
+    def media_type(self):
+        ext = Path(self.file.name).suffix.lower()
+        if ext in {".jpg", ".jpeg", ".png", ".gif"}:
+            return "image"
+        if ext in {".mp4", ".webm"}:
+            return "video"
+        if ext == ".pdf":
+            return "pdf"
+        return "other"
+
+    class Meta:
+        verbose_name = "Mídia do Usuário"
+        verbose_name_plural = "Portfólio do Usuário"
+
+    def clean(self) -> None:
+        """Valida o tamanho e a extensão do arquivo enviado."""
+        super().clean()
+        if self.file:
+            ext = Path(self.file.name).suffix.lower()
+            image_exts = set(getattr(settings, "UPLOAD_ALLOWED_IMAGE_EXTS", [".jpg", ".jpeg", ".png", ".gif", ".webp"]))
+            video_exts = set(getattr(settings, "UPLOAD_ALLOWED_VIDEO_EXTS", [".mp4", ".webm"]))
+            pdf_exts = set(getattr(settings, "UPLOAD_ALLOWED_PDF_EXTS", [".pdf"]))
+
+            if ext in image_exts:
+                category = "image"
+            elif ext in video_exts:
+                category = "video"
+            elif ext in pdf_exts:
+                category = "pdf"
+            else:
+                raise ValidationError({"file": _("Formato de arquivo não permitido.")})
+
+            try:
+                validate_upload(self.file, category)
+            except ValidationError as exc:
+                raise ValidationError({"file": exc.messages[0]}) from exc
+
+            file_field = self._meta.get_field("file")
+            max_length = file_field.max_length or 100
+            upload_to = file_field.upload_to if isinstance(file_field.upload_to, str) else ""
+            filename = Path(self.file.name).name
+            generated_path = posixpath.join(upload_to, filename) if upload_to else filename
+            if len(generated_path) > max_length:
+                prefix_length = len(posixpath.join(upload_to, "")) if upload_to else 0
+                allowed_length = max_length - prefix_length
+                raise ValidationError(
+                    {
+                        "file": _(
+                            "O nome do arquivo é muito longo. Renomeie o arquivo para no máximo %(chars)d caracteres."
+                        )
+                        % {"chars": max(allowed_length, 1)}
+                    }
+                )
+
+    def delete(
+        self,
+        using: str | None = None,
+        keep_parents: bool = False,
+        *,
+        soft: bool = True,
+    ) -> None:  # type: ignore[override]
+        """Remove o arquivo associado antes de deletar o registro.
+
+        Se ``soft`` for ``True``, o arquivo é mantido para permitir restauração
+        futura. Quando ``soft`` for ``False``, o arquivo é excluído
+        definitivamente do armazenamento.
+        """
+
+        if not soft and self.file:
+            # ``save=False`` evita a atualização do campo no banco de dados.
+            self.file.delete(save=False)
+
+        super().delete(using=using, keep_parents=keep_parents, soft=soft)
+
+    def __str__(self) -> str:  # pragma: no cover - simples
+        return f"{self.user.username} - {self.file.name}"
+
+
+class PerfilFeedback(TimeStampedModel, SoftDeleteModel):
+    """Avaliação direta de um usuário por outro."""
+
+    avaliado = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="feedbacks_recebidos",
+    )
+    autor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="feedbacks_enviados",
+    )
+    nota = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comentario = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Feedback de Perfil"
+        verbose_name_plural = "Feedbacks de Perfis"
+        unique_together = ("autor", "avaliado")
+
+    def __str__(self) -> str:  # pragma: no cover - simples
+        return f"Feedback de {self.autor} para {self.avaliado}"
+
+
+class UserRating(TimeStampedModel, SoftDeleteModel):
+    """Avaliação de um usuário por outro, com validações adicionais."""
+
+    rated_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ratings_received",
+    )
+    rated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ratings_given",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Avaliação de Usuário"
+        verbose_name_plural = "Avaliações de Usuários"
+        unique_together = ("rated_by", "rated_user")
+
+    def __str__(self) -> str:  # pragma: no cover - simples
+        return f"Avaliação de {self.rated_by} para {self.rated_user}"
+
+    def clean(self) -> None:  # pragma: no cover - validado em formulários/APIs
+        errors = {}
+
+        acting_user = getattr(self, "_acting_user", None)
+        acting_org_id = getattr(acting_user, "organizacao_id", None) if acting_user else None
+        rated_by_org_id = getattr(self, "rated_by", None)
+        rated_by_org_id = rated_by_org_id.organizacao_id if rated_by_org_id else None
+        rated_user_org_id = getattr(self, "rated_user", None)
+        rated_user_org_id = rated_user_org_id.organizacao_id if rated_user_org_id else None
+
+        org_ids = [org_id for org_id in (acting_org_id, rated_by_org_id) if org_id]
+        viewer_org_id = org_ids[0] if org_ids else None
+
+        if not viewer_org_id or not rated_user_org_id or viewer_org_id != rated_user_org_id:
+            errors.setdefault(NON_FIELD_ERRORS, []).append(
+                _("Você só pode avaliar perfis da sua organização."),
+            )
+
+        if self.rated_by_id and self.rated_user_id and self.rated_by_id == self.rated_user_id:
+            errors.setdefault(NON_FIELD_ERRORS, []).append(
+                _("Você não pode avaliar seu próprio perfil."),
+            )
+
+        if self.rated_by_id and self.rated_user_id:
+            existing = (
+                UserRating.objects.filter(
+                    rated_by_id=self.rated_by_id,
+                    rated_user_id=self.rated_user_id,
+                )
+                .exclude(pk=self.pk)
+                .exists()
+            )
+            if existing:
+                errors["__all__"] = _("Você já avaliou este usuário.")
+
+        if errors:
+            raise ValidationError(errors)
+
+    def full_clean_with_user(self, acting_user, **kwargs) -> None:
+        """Executa validação incluindo o usuário atuante."""
+
+        self._acting_user = acting_user
+        try:
+            self.full_clean(**kwargs)
+        finally:
+            self._acting_user = None
+
+
+class AccountToken(TimeStampedModel, SoftDeleteModel):
+    class Status(models.TextChoices):
+        PENDENTE = "pendente", _("Pendente")
+        CONFIRMADO = "confirmado", _("Confirmado")
+        UTILIZADO = "utilizado", _("Utilizado")
+
+    class Tipo(models.TextChoices):
+        EMAIL_CONFIRMATION = "email_confirmation", "Confirmação de Email"
+        PASSWORD_RESET = "password_reset", "Redefinição de Senha"
+        CANCEL_DELETE = "cancel_delete", "Cancelar Exclusão"
+
+    codigo = models.CharField(max_length=64, unique=True, default=generate_secure_token, db_index=True)
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="account_tokens")
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE)
+    ip_gerado = models.GenericIPAddressField(null=True, blank=True)
+
+    def mark_confirmed(self, save: bool = True) -> None:
+        self.status = self.Status.CONFIRMADO
+        if save:
+            self.save(update_fields=["status"])
+
+    def mark_used(self, save: bool = True) -> None:
+        now = timezone.now()
+        self.used_at = now
+        self.status = self.Status.UTILIZADO
+        if save:
+            self.save(update_fields=["used_at", "status"])
+
+    class Meta:
+        verbose_name = "Token de Conta"
+        verbose_name_plural = "Tokens de Conta"
+
+
+class MFALoginChallenge(TimeStampedModel):
+    class Method(models.TextChoices):
+        EMAIL_OTP = "email_otp", "Código por e-mail"
+
+    class Purpose(models.TextChoices):
+        LOGIN = "login", "Login"
+        DISABLE_2FA = "disable_2fa", "Desativar 2FA"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mfa_login_challenges",
+    )
+    method = models.CharField(max_length=20, choices=Method.choices)
+    purpose = models.CharField(max_length=20, choices=Purpose.choices, default=Purpose.LOGIN)
+    code_hash = models.CharField(max_length=64)
+    code_salt = models.CharField(max_length=32)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=5)
+    session_key = models.CharField(max_length=64, blank=True, default="")
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    def set_code(self, code: str) -> None:
+        salt = secrets.token_bytes(16)
+        digest = hashlib.pbkdf2_hmac("sha256", code.encode(), salt, 120000)
+        self.code_salt = base64.b64encode(salt).decode()
+        self.code_hash = base64.b64encode(digest).decode()
+
+    def check_code(self, code: str) -> bool:
+        salt = base64.b64decode(self.code_salt)
+        expected = base64.b64decode(self.code_hash)
+        digest = hashlib.pbkdf2_hmac("sha256", code.encode(), salt, 120000)
+        return hmac.compare_digest(expected, digest)
+
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class LoginAttempt(TimeStampedModel, SoftDeleteModel):
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    email = models.EmailField()
+    sucesso = models.BooleanField(default=False)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Tentativa de Login"
+        verbose_name_plural = "Tentativas de Login"
+
+
+class SecurityEvent(TimeStampedModel, SoftDeleteModel):
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="security_events",
+    )
+    evento = models.CharField(max_length=50)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Evento de Segurança"
+        verbose_name_plural = "Eventos de Segurança"

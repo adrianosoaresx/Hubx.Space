@@ -1,0 +1,265 @@
+from __future__ import annotations
+
+import uuid
+from decimal import Decimal
+from pathlib import Path
+
+from django.contrib.auth import get_user_model
+from django.db import models
+from django.db.models import SET_NULL, Q
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+
+from accounts.models import MediaTag
+from core.models import SoftDeleteManager, SoftDeleteModel, TimeStampedModel
+from eventos.validators import validate_uploaded_file
+
+User = get_user_model()
+
+
+class ParticipacaoNucleo(TimeStampedModel, SoftDeleteModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="participacoes")
+    nucleo = models.ForeignKey("Nucleo", on_delete=models.CASCADE, related_name="participacoes")
+
+    class PapelCoordenador(models.TextChoices):
+        COORDENADOR_GERAL = "coordenador_geral", _("Coordenador Geral")
+        VICE_COORDENADOR = "vice_coordenador", _("Vice coordenador")
+        CAPACITACAO = "capacitacao", _("Capacitação")
+        MARKETING = "marketing", _("Marketing")
+        EVENTOS = "eventos", _("Eventos")
+        FINANCEIRO = "financeiro", _("Financeiro")
+        RELACOES_PUBLICAS = "relacoes_publicas", _("Relações públicas")
+        INOVACAO = "inovacao", _("Inovação")
+        VALORIZACAO_EMPRESARIA = "valorizacao_empresaria", _("Valorização empresária")
+        GESTAO_EXCELENCIA = "gestao_excelencia", _("Gestão e Excelência")
+
+    PAPEL_CHOICES = [("membro", _("Membro")), ("coordenador", _("Coordenador"))]
+    papel = models.CharField(max_length=20, choices=PAPEL_CHOICES, default="membro")
+    papel_coordenador = models.CharField(
+        max_length=50,
+        choices=PapelCoordenador.choices,
+        null=True,
+        blank=True,
+        verbose_name=_("Papel de coordenação"),
+    )
+
+    STATUS_CHOICES = [
+        ("pendente", _("Pendente")),
+        ("ativo", _("Ativo")),
+        ("inativo", _("Inativo")),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pendente",
+        db_index=True,
+    )
+    status_suspensao = models.BooleanField(default=False)
+    data_suspensao = models.DateTimeField(null=True, blank=True)
+    data_solicitacao = models.DateTimeField(auto_now_add=True)
+    data_decisao = models.DateTimeField(null=True, blank=True)
+    decidido_por = models.ForeignKey(
+        User,
+        on_delete=SET_NULL,
+        null=True,
+        blank=True,
+        related_name="decisoes_participacao",
+    )
+    justificativa = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "nucleo"), name="uniq_participacao_usuario_nucleo"),
+            models.UniqueConstraint(
+                fields=("nucleo", "papel_coordenador"),
+                name="uniq_coordenador_papel",
+                condition=Q(papel="coordenador"),
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(papel="coordenador", papel_coordenador__isnull=False)
+                    | Q(papel="membro", papel_coordenador__isnull=True)
+                ),
+                name="papel_coordenador_valido",
+            ),
+        ]
+        verbose_name = "Participação no Núcleo"
+        verbose_name_plural = "Participações nos Núcleos"
+
+    def save(self, *args, **kwargs):  # pragma: no cover - behaviour validated via API tests
+        if self.papel != "coordenador":
+            self.papel_coordenador = None
+        elif not self.papel_coordenador:
+            self.papel_coordenador = self.PapelCoordenador.COORDENADOR_GERAL
+        super().save(*args, **kwargs)
+
+
+class Nucleo(TimeStampedModel, SoftDeleteModel):
+    class Classificacao(models.TextChoices):
+        CONSTITUIDO = "constituido", _("Constituído")
+        PLANEJAMENTO = "planejamento", _("Planejamento")
+        EM_FORMACAO = "em_formacao", _("Em formação")
+
+    public_id = models.UUIDField(primary_key=False, default=uuid.uuid4, unique=True, db_index=True, editable=False)
+    organizacao = models.ForeignKey(
+        "organizacoes.Organizacao",
+        on_delete=models.CASCADE,
+        related_name="nucleos",
+        db_column="organizacao",
+    )
+    nome = models.CharField(max_length=255)
+    descricao = models.TextField(blank=True)
+    classificacao = models.CharField(
+        max_length=20,
+        choices=Classificacao.choices,
+        default=Classificacao.PLANEJAMENTO,
+        verbose_name=_("Classificação"),
+    )
+    avatar = models.ImageField(upload_to="nucleos/avatars/", blank=True, null=True)
+    cover = models.ImageField(upload_to="nucleos/capas/", blank=True, null=True)
+    ativo = models.BooleanField(default=True)
+    mensalidade = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("30.00"))
+    consultor = models.ForeignKey(
+        User,
+        on_delete=SET_NULL,
+        null=True,
+        blank=True,
+        related_name="nucleos_consultoria",
+        verbose_name=_("Consultor"),
+    )
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("organizacao", "nome"), name="uniq_org_nome")]
+        verbose_name = "Núcleo"
+        verbose_name_plural = "Núcleos"
+
+    def __str__(self) -> str:
+        return self.nome
+
+    @property
+    def membros(self):
+        return User.objects.filter(
+            participacoes__nucleo=self,
+            participacoes__status="ativo",
+            participacoes__status_suspensao=False,
+        )
+
+    @property
+    def coordenadores(self):
+        return self.membros.filter(participacoes__papel="coordenador")
+
+    @property
+    def coordenador_geral(self):
+        return self.coordenadores.filter(
+            participacoes__papel_coordenador=ParticipacaoNucleo.PapelCoordenador.COORDENADOR_GERAL
+        ).first()
+
+
+class NucleoMidia(TimeStampedModel, SoftDeleteModel):
+    """Arquivos de mídia associados a um núcleo."""
+
+    nucleo = models.ForeignKey(
+        Nucleo,
+        on_delete=models.CASCADE,
+        related_name="midias",
+    )
+    file = models.FileField(upload_to="nucleos/portfolio/")
+    descricao = models.CharField("Descrição", max_length=255, blank=True)
+    tags = models.ManyToManyField(MediaTag, related_name="nucleo_midias", blank=True)
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        verbose_name = "Mídia do Núcleo"
+        verbose_name_plural = "Portfólio do Núcleo"
+
+    @property
+    def media_type(self) -> str:
+        ext = Path(self.file.name).suffix.lower()
+        if ext in {".jpg", ".jpeg", ".png", ".gif"}:
+            return "image"
+        if ext in {".mp4", ".webm"}:
+            return "video"
+        if ext == ".pdf":
+            return "pdf"
+        return "other"
+
+    def clean(self) -> None:
+        super().clean()
+        if self.file:
+            validate_uploaded_file(self.file)
+
+    def delete(
+        self,
+        using: str | None = None,
+        keep_parents: bool = False,
+        *,
+        soft: bool = True,
+    ) -> None:  # type: ignore[override]
+        if not soft and self.file:
+            self.file.delete(save=False)
+        super().delete(using=using, keep_parents=keep_parents, soft=soft)
+
+    def __str__(self) -> str:  # pragma: no cover - representação simples
+        return f"{self.nucleo.nome} - {self.file.name}"
+
+
+class CoordenadorSuplente(TimeStampedModel, SoftDeleteModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nucleo = models.ForeignKey(
+        Nucleo,
+        on_delete=models.CASCADE,
+        related_name="coordenadores_suplentes",
+    )
+    usuario = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="suplencias",
+    )
+    periodo_inicio = models.DateTimeField(db_index=True)
+    periodo_fim = models.DateTimeField(db_index=True)
+
+    class Meta:
+        verbose_name = "Coordenador Suplente"
+        verbose_name_plural = "Coordenadores Suplentes"
+
+    @property
+    def ativo(self) -> bool:
+        now = timezone.now()
+        return self.periodo_inicio <= now <= self.periodo_fim
+
+
+class ConviteNucleo(TimeStampedModel, SoftDeleteModel):
+    token = models.CharField(max_length=36, unique=True, default=uuid.uuid4, editable=False)
+    token_obj = models.ForeignKey(
+        "tokens.TokenAcesso",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="convites_nucleo",
+        db_column="token_id",
+    )
+    email = models.EmailField()
+    papel = models.CharField(
+        max_length=20,
+        choices=[("membro", "Membro"), ("coordenador", "Coordenador")],
+    )
+    limite_uso_diario = models.PositiveSmallIntegerField(default=1)
+    data_expiracao = models.DateTimeField(null=True, blank=True)
+    usado_em = models.DateTimeField(null=True, blank=True)
+    nucleo = models.ForeignKey(Nucleo, on_delete=models.CASCADE)
+
+    def expirado(self) -> bool:
+        if self.data_expiracao:
+            return self.data_expiracao < timezone.now()
+        from datetime import timedelta
+
+        from django.conf import settings
+
+        dias = getattr(settings, "CONVITE_NUCLEO_EXPIRACAO_DIAS", 7)
+        return self.created_at + timedelta(days=dias) < timezone.now()
+
+    class Meta:
+        verbose_name = "Convite para Núcleo"
+        verbose_name_plural = "Convites para Núcleos"

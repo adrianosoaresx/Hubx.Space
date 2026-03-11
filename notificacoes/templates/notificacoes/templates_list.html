@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans 'Templates de Notificação' %} | HubX{% endblock %}
+{% block hero %}
+  {% include 'core/componentes/hero.html' with title=_('Templates de Notificação') subtitle=_('Gerencie as mensagens utilizadas nos envios.') action_template='notificacoes/componentes/hero_action.html' %}
+{% endblock %}
+
+{% block content %}
+  <div class="max-w-6xl mx-auto px-4 py-10">
+    {% include 'notificacoes/partials/templates_panel.html' with page_obj=page_obj templates_page=templates_page %}
+  </div>
+  <div id="modal"></div>
+{% endblock %}

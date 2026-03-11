@@ -1,0 +1,12 @@
+{% load i18n %}
+<div class="grid gap-4" role="list">
+  {% for solicitante in connection_requests %}
+    {% include 'conexoes/partials/conexao_card.html' with usuario=solicitante section='pendentes' %}
+  {% empty %}
+    <article class="card" role="listitem">
+      <div class="card-body space-y-4 text-sm text-[var(--text-secondary)]">
+        <p>{% trans "Você não tem solicitações de conexão pendentes." %}</p>
+      </div>
+    </article>
+  {% endfor %}
+</div>

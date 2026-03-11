@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans 'Adicionar usuário' %}{% endblock %}
+
+{% block hero %}
+  {% include 'membros/componentes/hero_membros.html' with title=_('Adicionar membro') subtitle=_('Cadastre novos membros para a sua organização.') total_usuarios=None total_membros=None total_nucleados=None action_template=None %}
+{% endblock %}
+
+{% block content %}
+
+<article class="card">
+  <header class="card-header">
+    <h2 class="text-xl font-semibold">{% trans "Adicionar membro" %}</h2>
+  </header>
+  <div class="card-body space-y-6">
+    <form method="post" class="space-y-6">
+      {% csrf_token %}
+      {% if back_href %}
+        <input type="hidden" name="next" value="{{ back_href }}">
+      {% endif %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">
+          <ul class="space-y-1">
+            {% for error in form.non_field_errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+      {% for hidden in form.hidden_fields %}
+        {{ hidden }}
+      {% endfor %}
+
+      <div class="space-y-6">
+        <div class="grid gap-6 md:grid-cols-2">
+          {% if form.username %}
+            <div>
+              {% include '_forms/field.html' with field=form.username %}
+            </div>
+          {% endif %}
+          {% if form.membro_deste %}
+            <div>
+              {% include '_forms/field.html' with field=form.membro_deste %}
+            </div>
+          {% elif form.membro_desde %}
+            <div>
+              {% include '_forms/field.html' with field=form.membro_desde %}
+            </div>
+          {% endif %}
+        </div>
+
+        {% if form.user_type %}
+          <div>
+            {% include '_forms/field.html' with field=form.user_type %}
+          </div>
+        {% endif %}
+
+        {% if form.razao_social or form.nome_fantasia or form.cnpj or form.cpf or form.area_atuacao or form.descricao_atividade %}
+          <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+              data-accordion-toggle
+              aria-expanded="false"
+              aria-controls="membro-company-panel"
+            >
+              <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Informações da empresa" %}</span>
+              <svg
+                class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+                data-accordion-icon
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div
+              id="membro-company-panel"
+              class="border-t border-[var(--border)] px-4 py-4 space-y-6 hidden"
+              data-accordion-panel
+            >
+              {% if form.razao_social %}
+                <div>
+                  {% include '_forms/field.html' with field=form.razao_social %}
+                </div>
+              {% endif %}
+              {% if form.nome_fantasia %}
+                <div>
+                  {% include '_forms/field.html' with field=form.nome_fantasia %}
+                </div>
+              {% endif %}
+              <div class="grid gap-6 md:grid-cols-2">
+                {% if form.cnpj %}
+                  <div>
+                    {% include '_forms/field.html' with field=form.cnpj %}
+                  </div>
+                {% endif %}
+                {% if form.cpf %}
+                  <div>
+                    {% include '_forms/field.html' with field=form.cpf %}
+                  </div>
+                {% endif %}
+              </div>
+              {% if form.area_atuacao %}
+                <div>
+                  {% include '_forms/field.html' with field=form.area_atuacao %}
+                </div>
+              {% endif %}
+              {% if form.descricao_atividade %}
+                <div>
+                  {% include '_forms/field.html' with field=form.descricao_atividade %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        {% if form.contato or form.phone_number or form.whatsapp or form.email %}
+          <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+              data-accordion-toggle
+              aria-expanded="false"
+              aria-controls="membro-contact-panel"
+            >
+              <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Informações de contato" %}</span>
+              <svg
+                class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+                data-accordion-icon
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div
+              id="membro-contact-panel"
+              class="border-t border-[var(--border)] px-4 py-4 space-y-6 hidden"
+              data-accordion-panel
+            >
+              {% if form.contato %}
+                <div>
+                  {% include '_forms/field.html' with field=form.contato %}
+                </div>
+              {% endif %}
+              <div class="grid gap-6 md:grid-cols-2">
+                {% if form.phone_number %}
+                  <div>
+                    {% include '_forms/field.html' with field=form.phone_number %}
+                  </div>
+                {% endif %}
+                {% if form.whatsapp %}
+                  <div>
+                    {% include '_forms/field.html' with field=form.whatsapp %}
+                  </div>
+                {% endif %}
+              </div>
+              {% if form.email %}
+                <div class="grid gap-6 md:grid-cols-2">
+                  <div>
+                    {% include '_forms/field.html' with field=form.email %}
+                  </div>
+                  {% if form.birth_date %}
+                    <div>
+                      {% include '_forms/field.html' with field=form.birth_date %}
+                    </div>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        {% if form.password1 or form.password2 %}
+          <div class="space-y-3">
+            {% if form.password1 %}
+              <div>
+                {% include '_forms/field.html' with field=form.password1 %}
+              </div>
+            {% endif %}
+            {% if form.password2 %}
+              <div>
+                {% include '_forms/field.html' with field=form.password2 %}
+              </div>
+            {% endif %}
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-generate-password
+                aria-label="{% trans 'Gerar senha automática' %}"
+              >
+                {% trans "Gerar senha" %}
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost"
+                data-toggle-password
+                data-hidden-label="{% trans 'Mostrar senha' %}"
+                data-visible-label="{% trans 'Ocultar senha' %}"
+                aria-label="{% trans 'Alternar visualização da senha' %}"
+                aria-pressed="false"
+              >
+                {% trans "Mostrar senha" %}
+              </button>
+            </div>
+          </div>
+        {% endif %}
+
+        {% with handled_fields=' username membro_deste membro_desde user_type razao_social nome_fantasia cnpj cpf area_atuacao descricao_atividade contato phone_number whatsapp email birth_date password1 password2 ' %}
+          {% for field in form.visible_fields %}
+            {% if not field.is_hidden %}
+              {% with identifier=' '|add:field.name|add:' ' %}
+                {% if identifier not in handled_fields %}
+                  {% include '_forms/field.html' with field=field %}
+                {% endif %}
+              {% endwith %}
+            {% endif %}
+          {% endfor %}
+        {% endwith %}
+      </div>
+
+      {% url 'membros:membros_lista' as membros_list_url %}
+      <div class="flex flex-wrap justify-end gap-3 pt-4 border-t border-[var(--border)]">
+        <a href="{% url 'membros:membros_lista' %}" class="btn btn-secondary">{% trans 'Cancelar' %}</a>
+        <button type="submit" class="btn btn-primary" aria-label="{% trans 'Salvar membro' %}">{% trans 'Salvar' %}</button>
+      </div>
+    </form>
+  </div>
+</article>
+
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    (function () {
+      const accordionControllers = new WeakMap();
+
+      const accordions = document.querySelectorAll('[data-accordion]');
+      accordions.forEach((accordion) => {
+        const toggle = accordion.querySelector('[data-accordion-toggle]');
+        const panel = accordion.querySelector('[data-accordion-panel]');
+        const icon = accordion.querySelector('[data-accordion-icon]');
+
+        if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+          return;
+        }
+
+        const setExpanded = (expanded) => {
+          toggle.setAttribute('aria-expanded', String(expanded));
+          panel.classList.toggle('hidden', !expanded);
+
+          if (icon instanceof HTMLElement) {
+            icon.classList.toggle('rotate-180', expanded);
+          }
+        };
+
+        const hasFieldErrors =
+          accordion.querySelector('.errorlist') ||
+          accordion.querySelector('[aria-invalid="true"]');
+
+        const initialExpanded =
+          toggle.getAttribute('aria-expanded') === 'true' || Boolean(hasFieldErrors);
+        setExpanded(initialExpanded);
+
+        accordionControllers.set(accordion, { setExpanded });
+
+        toggle.addEventListener('click', () => {
+          const expanded = toggle.getAttribute('aria-expanded') === 'true';
+          setExpanded(!expanded);
+        });
+      });
+
+      const form = document.querySelector('form');
+
+      if (form instanceof HTMLFormElement) {
+        form.addEventListener('submit', (event) => {
+          if (form.checkValidity()) {
+            return;
+          }
+
+          const invalidFields = form.querySelectorAll(':invalid');
+
+          invalidFields.forEach((field) => {
+            if (!(field instanceof HTMLElement)) {
+              return;
+            }
+
+            const accordion = field.closest('[data-accordion]');
+
+            if (!accordion) {
+              return;
+            }
+
+            const controller = accordionControllers.get(accordion);
+            controller?.setExpanded(true);
+          });
+
+          form.reportValidity();
+          event.preventDefault();
+        });
+      }
+
+      const passwordInputs = Array.from(
+        document.querySelectorAll('input[name="password1"], input[name="password2"]'),
+      ).filter((input) => input instanceof HTMLInputElement);
+
+      const toggleButton = document.querySelector('[data-toggle-password]');
+      const generateButton = document.querySelector('[data-generate-password]');
+
+      const hiddenLabel =
+        (toggleButton instanceof HTMLElement && toggleButton.dataset.hiddenLabel) ||
+        (toggleButton instanceof HTMLElement ? toggleButton.textContent : '') ||
+        '';
+      const visibleLabel =
+        (toggleButton instanceof HTMLElement && toggleButton.dataset.visibleLabel) || hiddenLabel;
+
+      const setVisibility = (visible) => {
+        passwordInputs.forEach((input) => {
+          input.type = visible ? 'text' : 'password';
+        });
+
+        if (toggleButton instanceof HTMLElement) {
+          toggleButton.setAttribute('aria-pressed', String(visible));
+          toggleButton.textContent = visible ? visibleLabel : hiddenLabel;
+        }
+      };
+
+      if (toggleButton instanceof HTMLElement && passwordInputs.length) {
+        setVisibility(false);
+
+        toggleButton.addEventListener('click', () => {
+          const isVisible = toggleButton.getAttribute('aria-pressed') === 'true';
+          setVisibility(!isVisible);
+        });
+      }
+
+      if (generateButton instanceof HTMLElement && passwordInputs.length) {
+        const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@#$%*?';
+
+        const generatePassword = (length = 12) => {
+          let password = '';
+
+          for (let index = 0; index < length; index += 1) {
+            const randomIndex = Math.floor(Math.random() * charset.length);
+            password += charset.charAt(randomIndex);
+          }
+
+          return password;
+        };
+
+        generateButton.addEventListener('click', () => {
+          const password = generatePassword();
+
+          passwordInputs.forEach((input) => {
+            input.value = password;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+
+          setVisibility(true);
+        });
+      }
+    })();
+  </script>
+{% endblock %}

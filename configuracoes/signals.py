@@ -1,0 +1,64 @@
+from django.db.models.signals import pre_save, post_save
+from django.dispatch import receiver
+from django.core.cache import cache
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+import sentry_sdk
+
+from .middleware import get_request_info
+from .models import ConfiguracaoConta, ConfiguracaoContaLog
+from .services import CACHE_KEY
+
+CONTA_FIELDS = [
+    "receber_notificacoes_email",
+    "frequencia_notificacoes_email",
+    "receber_notificacoes_whatsapp",
+    "frequencia_notificacoes_whatsapp",
+    "receber_notificacoes_push",
+    "frequencia_notificacoes_push",
+    "idioma",
+    "tema",
+    "hora_notificacao_diaria",
+    "hora_notificacao_semanal",
+    "dia_semana_notificacao",
+]
+
+
+@receiver(pre_save, sender=ConfiguracaoConta)
+def capture_old_values(sender, instance, **kwargs):
+    if instance.pk:
+        old = sender.all_objects.get(pk=instance.pk)
+        instance._old_values = {f: getattr(old, f) for f in CONTA_FIELDS}
+    else:
+        instance._old_values = {}
+
+
+@receiver(post_save, sender=ConfiguracaoConta)
+def log_changes(sender, instance, created=False, **kwargs):
+    old_values = getattr(instance, "_old_values", {})
+    ip, agent, fonte = get_request_info()
+    changes: dict[str, object] = {}
+    for field in CONTA_FIELDS:
+        old = old_values.get(field)
+        new = getattr(instance, field)
+        if created or old != new:
+            ConfiguracaoContaLog.objects.create(
+                user=instance.user,
+                campo=field,
+                valor_antigo=old,
+                valor_novo=new,
+                ip=ip,
+                user_agent=agent,
+                fonte=fonte,
+            )
+            changes[field] = new
+    if changes:
+        channel_layer = get_channel_layer()
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"configuracoes_{instance.user.id}",
+                {"type": "configuracoes.message", "data": changes},
+            )
+        except Exception as exc:  # pragma: no cover - channels layer failure
+            sentry_sdk.capture_exception(exc)
+    cache.set(CACHE_KEY.format(id=instance.user_id), instance)

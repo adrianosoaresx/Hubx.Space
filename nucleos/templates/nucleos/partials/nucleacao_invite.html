@@ -1,0 +1,99 @@
+{% load i18n nucleo_tags %}
+{% with modal_title_id="modal-nucleacao-title-"|add:nucleo.pk|stringformat:"s" modal_description_id="modal-nucleacao-description"|add:nucleo.pk|stringformat:"s" %}
+{% can_request_nucleacao nucleo as can_request_nucleacao %}
+<div
+  class="modal !active overflow-hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="{{ modal_title_id }}"
+  aria-describedby="{{ modal_description_id }}"
+  data-modal-root
+>
+  <div class="modal-content max-w-3xl rounded-lg bg-[var(--bg-primary)] shadow-xl">
+    <div class="relative h-44 w-full overflow-hidden rounded-t-lg">
+      {% if nucleo.cover %}
+        <img src="{{ nucleo.cover.url|default:nucleo.cover }}" alt="{% blocktrans with nome=nucleo.nome %}Capa do núcleo {{ nome }}{% endblocktrans %}" class="h-full w-full object-cover" loading="lazy" />
+      {% else %}
+        <div class="h-full w-full bg-gradient-to-r from-[var(--hero-from,#2563eb)] to-[var(--hero-to,#7c3aed)]"></div>
+      {% endif %}
+      <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+    </div>
+
+    <div class="-mt-10 flex flex-col gap-4 px-6 pb-6 sm:px-8">
+      <div class="flex items-center gap-4">
+        <div class="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-4 border-[var(--bg-primary)] ring-1 ring-black/5 shadow-lg dark:border-[var(--bg-secondary)] dark:ring-white/10">
+          {% if nucleo.avatar %}
+            <img src="{{ nucleo.avatar.url|default:nucleo.avatar }}" alt="{% blocktrans with nome=nucleo.nome %}Avatar do núcleo {{ nome }}{% endblocktrans %}" class="h-full w-full object-cover" loading="lazy" />
+          {% else %}
+            <div class="flex h-full w-full items-center justify-center bg-[var(--bg-secondary)] text-xl font-semibold text-[var(--text-primary)]">
+              {{ nucleo.nome|first|upper }}
+            </div>
+          {% endif %}
+        </div>
+        <div class="flex flex-col gap-1">
+          <p class="inline-flex w-fit items-center rounded-full bg-[var(--bg-secondary)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            {{ nucleo.get_classificacao_display }}
+          </p>
+          <h2 id="{{ modal_title_id }}" class="text-xl font-semibold text-[var(--text-primary)]" tabindex="-1" data-initial-focus>{{ nucleo.nome }}</h2>
+          <p class="text-sm text-[var(--text-muted)]">
+            {% trans "Confirme se deseja participar deste núcleo." %}
+          </p>
+        </div>
+      </div>
+
+      <div id="{{ modal_description_id }}" class="space-y-3 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{% trans "Sobre este núcleo" %}</h3>
+        <p class="text-sm leading-relaxed text-[var(--text-primary)] whitespace-pre-line">
+          {% if nucleo.descricao %}
+            {{ nucleo.descricao }}
+          {% else %}
+            {% trans "Nenhuma descrição disponível." %}
+          {% endif %}
+        </p>
+      </div>
+
+      <div id="nucleacao-submit-feedback" aria-live="polite"></div>
+
+      <div class="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="text-sm text-[var(--text-secondary)]">
+          {% trans "Sua solicitação será enviada aos responsáveis pelo núcleo." %}
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+          {% if can_request_nucleacao %}
+            <form
+              method="post"
+              action="{{ participar_url }}"
+              class="flex justify-end"
+              hx-post="{{ participar_url }}"
+              hx-target="#modal"
+              hx-swap="innerHTML"
+              hx-on="htmx:beforeRequest: window.HubxModalTriggerContainer = 'nucleo-cta-{{ nucleo.public_id }}'; (function(){ const feedback = document.getElementById('nucleacao-submit-feedback'); if (feedback) { feedback.innerHTML = ''; } })(); htmx:responseError: (function(event){ const feedback = document.getElementById('nucleacao-submit-feedback'); if (!feedback) { return; } const xhr = event.detail && event.detail.xhr ? event.detail.xhr : null; const responseHtml = xhr ? xhr.responseText : ''; feedback.innerHTML = responseHtml || '<div class=&quot;rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800&quot; role=&quot;alert&quot;>{% trans 'Não foi possível enviar sua solicitação. Tente novamente.' %}</div>'; }); htmx:afterRequest: (function(event){ if (!event.detail.successful) { return; } const modalContainer = document.getElementById('modal'); if (modalContainer) { modalContainer.innerHTML = ''; } const focusTarget = document.getElementById('nucleo-cta-focus-{{ nucleo.public_id }}') || (window.HubxModalTrigger instanceof HTMLElement ? window.HubxModalTrigger : null); if (focusTarget && typeof focusTarget.focus === 'function') { focusTarget.focus(); } window.HubxModalTrigger = null; window.HubxModalTriggerContainer = null; })(); htmx:afterOnLoad: (function(event){ const triggerHeader = event.detail.xhr ? event.detail.xhr.getResponseHeader('HX-Trigger') : null; if (!triggerHeader || triggerHeader.indexOf('nucleacao:close-modal') === -1) { return; } const modalContainer = document.getElementById('modal'); if (modalContainer) { modalContainer.innerHTML = ''; } })();"
+            >
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary">
+                {% trans "Quero me nuclear" %}
+              </button>
+            </form>
+          {% endif %}
+          <button type="button" class="btn btn-secondary" data-modal-dismiss>
+            {% trans "Cancelar" %}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  #modal [data-modal-root] .modal-content {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  #modal [data-modal-root] .modal-content::-webkit-scrollbar {
+    display: none;
+  }
+</style>
+<script src="{% static 'nucleos/js/nucleacao-invite-modal.js' %}" defer></script>
+
+<script src="{% static 'nucleos/js/nucleacao-close-handler.js' %}" defer></script>
+{% endwith %}

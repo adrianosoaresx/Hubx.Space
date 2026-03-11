@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+{% load i18n lucide_icons %}
+
+{% block hero %}
+  {% include "portfolio/componentes/hero_portfolio.html" with title=hero_title subtitle=hero_subtitle counts=counts %}
+{% endblock %}
+
+{% block content %}
+  <div class="space-y-6" data-portfolio-root data-user-id="{{ request.user.pk }}">
+    <div class="card" data-accordion data-accordion-id="portfolio-highlights">
+      <div class="card-header">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between gap-4 text-left"
+          data-accordion-toggle
+          aria-expanded="false"
+          aria-controls="portfolio-highlights-panel"
+        >
+          <span class="flex items-center gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--warning)]">
+              {% lucide 'star' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <span>
+              <h2 class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Destaques" %}</h2>
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Mídias marcadas como destaque aparecem aqui" %}</p>
+            </span>
+          </span>
+          <span class="text-[var(--text-secondary)] transition-transform duration-200 transform" data-accordion-icon>
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </button>
+      </div>
+      <div
+        id="portfolio-highlights-panel"
+        class="card-body space-y-4 hidden"
+        data-accordion-panel
+      >
+        <p class="text-sm text-[var(--text-secondary)]">
+          {% trans "Selecione mídias do portfólio para destacá-las." %}
+        </p>
+        <p id="portfolio-highlight-empty" class="text-sm text-[var(--text-secondary)]">
+          {% trans "Nenhuma mídia marcada como destaque." %}
+        </p>
+        <div
+          id="portfolio-highlight-list"
+          class="card-grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 hidden"
+          aria-live="polite"
+          data-highlight-remove-label="{% trans 'Desflegar' %}"
+        ></div>
+      </div>
+    </div>
+
+    <div
+      class="card"
+      data-accordion
+      data-accordion-id="portfolio-library"
+      {% if show_form %}data-accordion-force-open{% endif %}
+    >
+      <div class="card-header">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-4 text-left"
+            data-accordion-toggle
+            aria-expanded="false"
+            aria-controls="portfolio-library-panel"
+          >
+            <span class="flex items-center gap-3">
+              <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--accent)]">
+                {% lucide 'folder-open' class='h-6 w-6' aria_hidden='true' %}
+              </span>
+              <span>
+                <h2 class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Portfólio" %}</h2>
+                <p class="text-sm text-[var(--text-secondary)]">{% trans "Gerencie suas imagens, vídeos e documentos" %}</p>
+              </span>
+            </span>
+            <span class="text-[var(--text-secondary)] transition-transform duration-200 transform" data-accordion-icon>
+              {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+            </span>
+          </button>
+          {% if not show_form %}
+            <a
+              href="{% url 'portfolio:index' %}?adicionar=1"
+              class="btn btn-primary inline-flex items-center justify-center gap-2 w-full md:w-auto"
+            >
+              {% lucide 'plus' class='w-4 h-4' aria_hidden='true' %}
+              <span>{% trans "Adicionar mídia" %}</span>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      <div
+        id="portfolio-library-panel"
+        class="card-body space-y-6 hidden"
+        data-accordion-panel
+      >
+        {% if show_form %}
+          <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            {% if messages %}
+              {% for message in messages %}
+                {% if 'success' in message.tags %}
+                  {% with alert_class='alert alert-success' alert_role='status' %}
+                    <div class="{{ alert_class }}" role="{{ alert_role }}">{{ message }}</div>
+                  {% endwith %}
+                {% elif 'error' in message.tags or 'danger' in message.tags %}
+                  {% with alert_class='alert alert-error' alert_role='alert' %}
+                    <div class="{{ alert_class }}" role="{{ alert_role }}">{{ message }}</div>
+                  {% endwith %}
+                {% elif 'warning' in message.tags %}
+                  {% with alert_class='alert alert-warning' alert_role='alert' %}
+                    <div class="{{ alert_class }}" role="{{ alert_role }}">{{ message }}</div>
+                  {% endwith %}
+                {% else %}
+                  {% with alert_class='alert alert-info' alert_role='status' %}
+                    <div class="{{ alert_class }}" role="{{ alert_role }}">{{ message }}</div>
+                  {% endwith %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {% if form.non_field_errors %}
+              <div class="alert alert-error" role="alert">
+                {{ form.non_field_errors }}
+              </div>
+            {% endif %}
+            {% for field in form %}
+              {% include '_forms/field.html' with field=field %}
+            {% endfor %}
+            <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+              <a href="{% url 'portfolio:index' %}" class="btn btn-secondary">{% trans "Cancelar" %}</a>
+              <button type="submit" class="btn btn-primary">{% trans "Enviar" %}</button>
+            </div>
+          </form>
+        {% else %}
+          {% if filter_form %}
+            <form method="get" class="space-y-4">
+              {% include '_forms/field.html' with field=filter_form.q %}
+            </form>
+          {% endif %}
+          <div class="card-grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
+            {% for media in medias %}
+              <article class="card p-0" data-media-card data-media-id="{{ media.pk }}">
+                <div class="card-body relative space-y-5">
+                  <div class="absolute right-4 top-4 z-10 flex gap-2" data-card-actions>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm border border-[var(--border)] text-[var(--text-secondary)]"
+                      data-highlight-toggle
+                      data-media-id="{{ media.pk }}"
+                      data-highlight-label-on="{% trans 'Remover dos destaques' %}"
+                      data-highlight-label-off="{% trans 'Marcar como destaque' %}"
+                      aria-pressed="false"
+                      aria-label="{% trans 'Marcar como destaque' %}"
+                    >
+                      <svg
+                        data-highlight-icon="off"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                      </svg>
+                      <svg
+                        data-highlight-icon="on"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        class="hidden h-4 w-4 fill-current"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M12 2.25l2.64 5.35 5.91.86-4.28 4.17 1.01 5.88L12 15.77l-5.28 2.79 1.01-5.88-4.28-4.17 5.91-.86L12 2.25z"
+                        />
+                      </svg>
+                    </button>
+                    <a href="{% url 'portfolio:edit' media.pk %}" class="btn btn-secondary btn-sm" aria-label="{% trans 'Editar' %}">
+                      {% lucide 'pencil' class='w-4 h-4' aria_hidden='true' %}
+                    </a>
+                    <a
+                      href="{% url 'portfolio:delete' media.pk %}"
+                      class="btn btn-danger btn-sm"
+                      aria-label="{% trans 'Excluir' %}"
+                      hx-get="{% url 'portfolio:delete' media.pk %}"
+                      hx-target="#modal"
+                      hx-trigger="click"
+                      hx-swap="innerHTML"
+                      hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+                    >
+                      {% lucide 'trash' class='w-4 h-4' aria_hidden='true' %}
+                    </a>
+                  </div>
+                  <header class="space-y-2 pr-16">
+                    <p class="text-sm font-medium text-[var(--text-primary)]">{{ media.descricao }}</p>
+                    <p class="text-xs text-[var(--text-secondary)]">{{ media.created_at|date:"SHORT_DATETIME_FORMAT" }}</p>
+                  </header>
+                  {% if media.media_type == 'pdf' %}
+                    <div class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]">
+                      <a href="{{ media.file.url }}" class="flex items-center justify-between gap-4 p-4 text-sm font-medium text-[var(--text-primary)] transition hover:text-[var(--accent)]" target="_blank" rel="noopener">
+                        <span class="flex items-center gap-3">
+                          <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--primary)]">
+                            {% lucide 'file-text' class='h-6 w-6' aria_hidden='true' %}
+                          </span>
+                          <span class="truncate">{% trans "Visualizar PDF" %}</span>
+                        </span>
+                        {% lucide 'external-link' class='h-5 w-5 flex-shrink-0 text-[var(--text-secondary)]' aria_hidden='true' %}
+                      </a>
+                    </div>
+                  {% else %}
+                    <a href="{% url 'portfolio:detail' media.pk %}" class="block">
+                      {% if media.media_type == 'image' %}
+                        <figure class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]">
+                          <div class="relative flex max-h-[320px] w-full items-center justify-center overflow-hidden bg-[var(--bg-secondary)]">
+                            <img src="{{ media.file.url }}" alt="{{ media.descricao }}" class="h-auto w-full max-h-[320px] object-contain" loading="lazy" />
+                          </div>
+                        </figure>
+                      {% elif media.media_type == 'video' %}
+                        <figure class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-black">
+                          <div class="feed-video-wrapper">
+                            <div class="feed-video-frame">
+                              <video src="{{ media.file.url }}" controls class="feed-video-player"></video>
+                            </div>
+                          </div>
+                        </figure>
+                      {% else %}
+                        <div class="relative z-20 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)] p-4 text-sm text-[var(--text-primary)]">
+                          {{ media.file.name }}
+                        </div>
+                      {% endif %}
+                    </a>
+                  {% endif %}
+                  {% if media.tags.all %}
+                    <div class="flex flex-wrap gap-2">
+                      {% for tag in media.tags.all %}
+                        <span class="rounded bg-[var(--bg-secondary)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">{{ tag.nome }}</span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+              </article>
+            {% empty %}
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Nenhum arquivo enviado." %}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div id="modal" role="presentation" aria-live="polite"></div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const root = document.querySelector('[data-portfolio-root]');
+      const userId = root?.getAttribute('data-user-id') || 'anonymous';
+
+      const accordionStateKey = `portfolioAccordionState:${userId}`;
+
+      const readAccordionState = () => {
+        try {
+          const stored = localStorage.getItem(accordionStateKey);
+          if (!stored) {
+            return new Map();
+          }
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object') {
+            return new Map(
+              Object.entries(parsed).map(([key, value]) => [key, Boolean(value)]),
+            );
+          }
+        } catch (error) {
+          console.warn('Não foi possível ler o estado dos acordions.', error);
+        }
+        return new Map();
+      };
+
+      const persistAccordionState = (state) => {
+        try {
+          const serialized = JSON.stringify(Object.fromEntries(state));
+          localStorage.setItem(accordionStateKey, serialized);
+        } catch (error) {
+          console.warn('Não foi possível salvar o estado dos acordions.', error);
+        }
+      };
+
+      const setAccordionState = (button, panel, icon, isOpen) => {
+        button.setAttribute('aria-expanded', String(isOpen));
+        panel.classList.toggle('hidden', !isOpen);
+        if (icon) {
+          icon.classList.toggle('rotate-180', isOpen);
+        }
+      };
+
+      const accordionState = readAccordionState();
+      let accordionStateChanged = false;
+
+      const accordions = document.querySelectorAll('[data-accordion]');
+      accordions.forEach((accordion, index) => {
+        const toggle = accordion.querySelector('[data-accordion-toggle]');
+        const panel = accordion.querySelector('[data-accordion-panel]');
+        const icon = accordion.querySelector('[data-accordion-icon]');
+
+        if (!toggle || !panel) {
+          return;
+        }
+
+        const controls = toggle.getAttribute('aria-controls');
+        const fallbackId = controls || `accordion-${index}`;
+        const accordionId = accordion.dataset.accordionId || fallbackId;
+        const forceOpen = accordion.hasAttribute('data-accordion-force-open');
+        const storedState = accordionState.has(accordionId)
+          ? Boolean(accordionState.get(accordionId))
+          : undefined;
+        const initialState = forceOpen ? true : storedState ?? false;
+
+        setAccordionState(toggle, panel, icon, initialState);
+
+        if (forceOpen && storedState !== true) {
+          accordionState.set(accordionId, true);
+          accordionStateChanged = true;
+        } else if (storedState === undefined) {
+          accordionState.set(accordionId, initialState);
+          accordionStateChanged = true;
+        }
+
+        toggle.addEventListener('click', () => {
+          const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+          const next = !isExpanded;
+          setAccordionState(toggle, panel, icon, next);
+          accordionState.set(accordionId, next);
+          persistAccordionState(accordionState);
+        });
+      });
+
+      if (accordionStateChanged) {
+        persistAccordionState(accordionState);
+      }
+
+      if (!root) {
+        return;
+      }
+
+      const storageKey = `portfolioHighlights:${userId}`;
+      const highlightList = document.getElementById('portfolio-highlight-list');
+      const emptyState = document.getElementById('portfolio-highlight-empty');
+      const highlightButtons = document.querySelectorAll('[data-highlight-toggle]');
+
+      const readStoredHighlights = () => {
+        try {
+          const stored = localStorage.getItem(storageKey);
+          if (!stored) {
+            return new Set();
+          }
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            return new Set(parsed.map(String));
+          }
+        } catch (error) {
+          console.warn('Não foi possível ler os destaques salvos.', error);
+        }
+        return new Set();
+      };
+
+      const highlightedIds = readStoredHighlights();
+
+      const persistHighlights = () => {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(Array.from(highlightedIds)));
+        } catch (error) {
+          console.warn('Não foi possível salvar os destaques.', error);
+        }
+      };
+
+      const setButtonState = (button, isActive) => {
+        const labelOn = button.dataset.highlightLabelOn || button.getAttribute('aria-label') || '';
+        const labelOff = button.dataset.highlightLabelOff || button.getAttribute('aria-label') || '';
+        button.setAttribute('aria-pressed', String(isActive));
+        button.setAttribute('aria-label', isActive ? labelOn : labelOff);
+        button.title = isActive ? labelOn : labelOff;
+        button.classList.toggle('text-red-500', isActive);
+        button.classList.toggle('text-[var(--text-secondary)]', !isActive);
+        const iconOn = button.querySelector('[data-highlight-icon="on"]');
+        const iconOff = button.querySelector('[data-highlight-icon="off"]');
+        if (iconOn && iconOff) {
+          iconOn.classList.toggle('hidden', !isActive);
+          iconOff.classList.toggle('hidden', isActive);
+        }
+      };
+
+      const escapeSelector = (value) => {
+        if (window.CSS && typeof window.CSS.escape === 'function') {
+          return window.CSS.escape(value);
+        }
+        return value.replace(/([#.;?+*~':"!^$\[\]()=>|/@])/g, '\\$1');
+      };
+
+      function refreshHighlights() {
+        if (!highlightList || !emptyState) {
+          return;
+        }
+
+        highlightList.innerHTML = '';
+        const missingIds = [];
+        highlightedIds.forEach((id) => {
+          const selectorId = escapeSelector(id);
+          const sourceCard = document.querySelector(`[data-media-card][data-media-id="${selectorId}"]`);
+          if (!sourceCard) {
+            missingIds.push(id);
+            return;
+          }
+          const clone = sourceCard.cloneNode(true);
+          clone.setAttribute('data-highlight-source-id', id);
+          clone.removeAttribute('data-media-card');
+          clone.removeAttribute('data-media-id');
+          const highlightToggle = clone.querySelector('[data-highlight-toggle]');
+          if (highlightToggle) {
+            highlightToggle.remove();
+          }
+          const actionsBar = clone.querySelector('[data-card-actions]');
+          if (actionsBar) {
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className =
+              'btn btn-ghost btn-sm border border-[var(--border)] text-red-500';
+            removeButton.dataset.highlightRemove = 'true';
+            removeButton.dataset.mediaId = id;
+            const removeLabel = highlightList.dataset.highlightRemoveLabel || 'Desflegar';
+            removeButton.setAttribute('aria-label', removeLabel);
+            removeButton.title = removeLabel;
+            removeButton.innerHTML = `
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-4 w-4 fill-current"
+                aria-hidden="true"
+              >
+                <path
+                  d="M12 2.25l2.64 5.35 5.91.86-4.28 4.17 1.01 5.88L12 15.77l-5.28 2.79 1.01-5.88-4.28-4.17 5.91-.86L12 2.25z"
+                />
+              </svg>
+              <span class="sr-only">${removeLabel}</span>
+            `;
+            actionsBar.prepend(removeButton);
+          }
+          highlightList.appendChild(clone);
+        });
+
+        if (missingIds.length) {
+          missingIds.forEach((id) => highlightedIds.delete(id));
+          persistHighlights();
+        }
+
+        const hasHighlights = highlightedIds.size > 0;
+        highlightList.classList.toggle('hidden', !hasHighlights);
+        emptyState.classList.toggle('hidden', hasHighlights);
+        const removeButtons = highlightList.querySelectorAll('[data-highlight-remove]');
+        removeButtons.forEach((removeButton) => {
+          removeButton.addEventListener('click', () => {
+            const mediaId = removeButton.dataset.mediaId;
+            if (!mediaId) {
+              return;
+            }
+            handleHighlightRemoval(mediaId);
+          });
+        });
+      }
+
+      function handleHighlightRemoval(mediaId) {
+        const stringId = String(mediaId);
+        highlightedIds.delete(stringId);
+        persistHighlights();
+        const selectorId = escapeSelector(stringId);
+        const sourceToggle = document.querySelector(
+          `[data-highlight-toggle][data-media-id="${selectorId}"]`,
+        );
+        if (sourceToggle) {
+          setButtonState(sourceToggle, false);
+        }
+        refreshHighlights();
+      }
+
+      highlightButtons.forEach((button) => {
+        const mediaId = button.dataset.mediaId;
+        if (!mediaId) {
+          return;
+        }
+        const isActive = highlightedIds.has(String(mediaId));
+        setButtonState(button, isActive);
+        button.addEventListener('click', () => {
+          const nextActive = !highlightedIds.has(String(mediaId));
+          if (nextActive) {
+            highlightedIds.add(String(mediaId));
+          } else {
+            highlightedIds.delete(String(mediaId));
+          }
+          setButtonState(button, nextActive);
+          persistHighlights();
+          refreshHighlights();
+        });
+      });
+
+      refreshHighlights();
+    });
+  </script>
+{% endblock %}

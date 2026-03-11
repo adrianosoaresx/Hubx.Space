@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title|default:_('Avaliar evento') }}{% endblock %}
+
+{% block hero %}{% include 'eventos/componentes/hero_evento.html' with title=title|default:_('Avaliar evento') subtitle=subtitle|default:evento.descricao %}{% endblock %}
+
+{% block content %}
+  
+    <article class="card">
+      <div class="card-header">
+        <h2 class="text-xl font-semibold">{% trans "Avaliar evento" %}</h2>
+      </div>
+      <div class="card-body space-y-6">
+        <form method="post" class="space-y-6">
+          {% csrf_token %}
+          {{ form.non_field_errors }}
+          {% include '_forms/field.html' with field=form.nota %}
+          {% include '_forms/field.html' with field=form.comentario %}
+          <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+            {% url 'eventos:evento_detalhe' evento.pk as evento_detalhe_url %}
+            {% include '_components/back_button.html' with href=back_href fallback_href=evento_detalhe_url %}
+            <button type="submit" class="btn btn-primary" aria-label="{% trans 'Enviar avaliação' %}">{% trans 'Enviar avaliação' %}</button>
+          </div>
+        </form>
+      </div>
+    </article>
+
+{% endblock %}

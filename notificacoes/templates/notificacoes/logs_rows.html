@@ -1,0 +1,16 @@
+{% load i18n %}
+{# Linhas renderizadas dentro da tabela de logs atualizada via HTMX #}
+{% for log in logs %}
+  <tr>
+    <td class="px-4 py-2">{{ log.data_envio|date:"SHORT_DATETIME_FORMAT" }}</td>
+    <td class="px-4 py-2">{{ log.user.display_name }}</td>
+    <td class="px-4 py-2">{{ log.template.codigo }}</td>
+    <td class="px-4 py-2">{{ log.get_canal_display }}</td>
+    <td class="px-4 py-2">{{ log.get_status_display }}</td>
+    <td class="px-4 py-2 text-sm">{{ log.erro|default:_("-") }}</td>
+  </tr>
+{% empty %}
+  <tr>
+    <td colspan="6" class="px-4 py-6 text-center text-[var(--text-secondary)]">{% trans 'Nenhum log encontrado.' %}</td>
+  </tr>
+{% endfor %}

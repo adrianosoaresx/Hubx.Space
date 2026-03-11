@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% load i18n l10n lucide_icons static %}
+
+{% block title %}{{ object.nome }}{% endblock %}
+
+{% block hero %}
+  <div id="nucleo-hero">
+    {% include 'nucleos/componentes/hero_nucleo_detail.html' with nucleo=object %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <header class="mb-6">
+    <h1 class="text-3xl font-bold tracking-tight text-[var(--text-primary)] md:text-4xl">{{ object.nome }}</h1>
+  </header>
+
+  <div class="flex flex-col gap-6">
+      <details id="nucleo-informacoes-card" class="card group">
+        <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+          <div class="flex items-start gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/15">
+              {% lucide 'info' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <h2 class="text-xl font-semibold">{% trans "Informações" %}</h2>
+              <p class="text-sm text-[var(--text-secondary)]" id="nucleo-informacoes-subtitle">
+                {% trans "Dados gerais e status do núcleo" %}
+              </p>
+            </div>
+          </div>
+          <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+            {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-6">
+          <dl class="space-y-6 text-sm">
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                <dt class="text-[var(--text-secondary)]">{% trans "Status" %}</dt>
+                <dd class="font-medium text-[var(--text-primary)]">
+                  {% if object.ativo %}
+                    {% trans "Ativo" %}
+                  {% else %}
+                    {% trans "Inativo" %}
+                  {% endif %}
+                </dd>
+              </div>
+
+              <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                <dt class="text-[var(--text-secondary)]">{% trans "Classificação" %}</dt>
+                <dd class="font-medium text-[var(--text-primary)]">{{ object.get_classificacao_display }}</dd>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                <dt class="text-[var(--text-secondary)]">{% trans "Membros" %}</dt>
+                <dd class="font-medium text-[var(--text-primary)]">{{ total_membros }}</dd>
+              </div>
+
+              <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                <dt class="text-[var(--text-secondary)]">{% trans "Coordenadores" %}</dt>
+                <dd class="font-medium text-[var(--text-primary)]">{{ coordenadores|length }}</dd>
+              </div>
+            </div>
+
+            {% if object.created_at or object.updated_at %}
+              <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {% if object.created_at %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Criado em" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)]">{{ object.created_at|date:'SHORT_DATETIME_FORMAT' }}</dd>
+                  </div>
+                {% endif %}
+
+                {% if object.updated_at %}
+                  <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                    <dt class="text-[var(--text-secondary)]">{% trans "Atualizado em" %}</dt>
+                    <dd class="font-medium text-[var(--text-primary)]">{{ object.updated_at|date:'SHORT_DATETIME_FORMAT' }}</dd>
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
+
+            {% if object.descricao %}
+              <div class="flex flex-col gap-1 rounded-lg border border-[var(--border)] px-3 py-2">
+                <dt class="text-[var(--text-secondary)]">{% trans "Descrição" %}</dt>
+                <dd class="font-medium text-[var(--text-primary)] whitespace-pre-line">{{ object.descricao }}</dd>
+              </div>
+            {% endif %}
+          </dl>
+          <div id="nucleo-info-actions" class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+            {% if perms.nucleos.change_nucleo or request.user.user_type == 'admin' or request.user.user_type == 'operador' %}
+              <a
+                href="{% url 'nucleos:update' public_id=object.public_id %}"
+                class="btn btn-secondary"
+              >{% trans "Editar" %}</a>
+            {% endif %}
+            {% if perms.nucleos.delete_nucleo or request.user.user_type == 'admin' or request.user.user_type == 'operador' %}
+              <a
+                href="{% url 'nucleos:delete' public_id=object.public_id %}"
+                hx-get="{% url 'nucleos:delete' public_id=object.public_id %}"
+                hx-target="#modal"
+                hx-trigger="click"
+                hx-swap="innerHTML"
+                hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+                class="btn btn-danger"
+              >{% trans "Excluir" %}</a>
+            {% endif %}
+          </div>
+        </div>
+      </details>
+
+      {% include 'nucleos/partials/portfolio_card.html' with nucleo=object %}
+
+      {% with section=current_section|default:"membros" %}
+        {% if section == 'membros' %}
+          {% url 'nucleos:membros_list' object.public_id as membros_list_url %}
+          <details
+            id="nucleo-membros-card"
+            class="card group"
+            hx-get="{{ membros_list_url }}"
+            hx-target="#membros-list"
+            hx-trigger="toggle[target.open]"
+            hx-include="#membros-filter-form"
+            hx-indicator="#membros-loading"
+            hx-push-url="true"
+            hx-vals='{"papel":"membro","card":"membros"}'
+          >
+            <summary
+              class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden"
+            >
+              <div class="flex items-start gap-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-600)] shadow-lg shadow-[var(--color-primary-500)]/15">
+                  {% lucide 'users' class='h-6 w-6' aria_hidden='true' %}
+                </span>
+                <div class="space-y-1">
+                  <h2 class="text-xl font-semibold">{% trans "Membros" %}</h2>
+                  <p class="text-sm text-[var(--text-secondary)]" id="nucleo-membros-subtitle">
+                    {% blocktrans count count=total_membros %}
+                      {{ count }} membro no total
+                    {% plural %}
+                      {{ count }} membros no total
+                    {% endblocktrans %}
+                  </p>
+                </div>
+              </div>
+              <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+                {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+              </span>
+            </summary>
+            <div class="card-body space-y-6">
+              <div id="membros-filter-container">
+                {% include 'nucleos/partials/membros_filter_form.html' with form_id='membros-filter-form' search_input_id='membros-search' hx_target='#membros-list' hx_indicator='#membros-loading' hx_push_url='true' default_papel='membro' card_name='membros' search_label=_('Pesquisar membros') search_placeholder=_('Buscar por nome ou email') %}
+              </div>
+              <section id="nucleo-membros" class="space-y-6">
+                <div id="membros-list">
+                  {% if not is_coordenadores_filter_active %}
+                    {% if partial_template %}
+                      {% include partial_template with card='membros' %}
+                    {% else %}
+                      {% include 'nucleos/partials/membros_list.html' with card='membros' %}
+                    {% endif %}
+                  {% else %}
+                    <p class="text-sm text-[var(--text-secondary)]">{% trans "Clique para reexibir a lista completa de membros." %}</p>
+                  {% endif %}
+                </div>
+                <div
+                  id="membros-loading"
+                  class="htmx-indicator text-center text-sm text-[var(--text-secondary)]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {% trans 'Carregando membros...' %}
+                </div>
+              </section>
+            </div>
+          </details>
+
+          <details
+            id="nucleo-coordenadores-card"
+            class="card group"
+            hx-get="{{ membros_list_url }}"
+            hx-target="#coordenadores-list"
+            hx-trigger="toggle[target.open]"
+            hx-include="#coordenadores-filter-form"
+            hx-indicator="#coordenadores-loading"
+            hx-push-url="true"
+            hx-vals='{"papel":"coordenador","card":"coordenadores"}'
+            {% if is_coordenadores_filter_active %}open{% endif %}
+          >
+            <summary
+              class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden"
+            >
+              <div class="flex items-start gap-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/20">
+                  {% lucide 'user-check' class='h-6 w-6' aria_hidden='true' %}
+                </span>
+                <div class="space-y-1">
+                  <h2 class="text-xl font-semibold">{% trans "Coordenadores" %}</h2>
+                  <p class="text-sm text-[var(--text-secondary)]" id="nucleo-coordenadores-subtitle">
+                    {% blocktrans count count=total_coordenadores %}
+                      {{ count }} coordenador no total
+                    {% plural %}
+                      {{ count }} coordenadores no total
+                    {% endblocktrans %}
+                  </p>
+                </div>
+              </div>
+              <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+                {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+              </span>
+            </summary>
+            <div class="card-body space-y-6">
+              <div id="coordenadores-filter-container">
+                {% include 'nucleos/partials/membros_filter_form.html' with form_id='coordenadores-filter-form' search_input_id='coordenadores-search' hx_target='#coordenadores-list' hx_indicator='#coordenadores-loading' hx_push_url='true' default_papel='coordenador' card_name='coordenadores' search_label=_('Pesquisar coordenadores') search_placeholder=_('Buscar por nome ou email') %}
+              </div>
+              <section class="space-y-6">
+                <div id="coordenadores-list">
+                  {% if partial_template %}
+                    {% include partial_template with card='coordenadores' %}
+                  {% else %}
+                    {% include 'nucleos/partials/membros_list.html' with card='coordenadores' %}
+                  {% endif %}
+                </div>
+                <div
+                  id="coordenadores-loading"
+                  class="htmx-indicator text-center text-sm text-[var(--text-secondary)]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {% trans 'Carregando coordenadores...' %}
+                </div>
+              </section>
+            </div>
+          </details>
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <div id="modal" role="presentation" aria-live="polite"></div>
+
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+  <script src="{% static 'nucleos/js/nucleo-detail.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ object.nome }} | Hubx{% endblock %}
+
+{% block hero %}
+  {% if request.user.user_type == 'root' %}
+    {% include 'organizacoes/componentes/hero_organizacao.html' with organizacao=object title=object.nome subtitle=_('Acompanhe os detalhes da organização.') neural_background='home' show_stats=True usuarios_total=usuarios|length nucleos_total=nucleos|length eventos_total=eventos|length %}
+  {% else %}
+    {% include 'organizacoes/componentes/hero_organizacao.html' with organizacao=object title=object.nome subtitle=_('Acompanhe os detalhes da organização.') neural_background='home' show_stats=False usuarios_total=usuarios|length nucleos_total=nucleos|length eventos_total=eventos|length %}
+  {% endif %}
+
+{% endblock %}
+
+{% block content %}
+  
+    <article class="card">
+      <div class="card-body space-y-6">
+        <div class="flex flex-col items-center gap-4 text-center">
+          {% if object.avatar %}
+            <img src="{{ object.avatar.url }}" alt="{{ object.nome }}" class="h-24 w-24 rounded-full border-4 border-[var(--bg-primary)] object-cover shadow" loading="lazy">
+          {% else %}
+            <div class="flex h-24 w-24 items-center justify-center rounded-full border-4 border-[var(--bg-primary)] bg-[var(--bg-secondary)] text-xl font-semibold text-[var(--text-tertiary)]" role="img" aria-label="{{ object.nome }}">
+              {{ object.nome|make_list|first|upper }}
+            </div>
+          {% endif %}
+
+          <div class="flex flex-col items-center gap-2">
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              <h1 class="text-2xl font-bold text-[var(--text-primary)]">{{ object.nome }}</h1>
+              {% if object.inativa %}
+                <span class="inline-flex items-center rounded-full bg-[var(--warning-light)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--warning)]">{% trans 'Inativa' %}</span>
+              {% endif %}
+            </div>
+            <p class="text-sm text-[var(--text-secondary)]">{{ object.get_tipo_display }}</p>
+          </div>
+        </div>
+
+        <dl class="grid gap-4 text-sm sm:grid-cols-2">
+          <div class="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+            <dt class="text-[var(--text-secondary)]">{% trans 'CNPJ' %}</dt>
+            <dd class="font-medium text-[var(--text-primary)]">{{ object.cnpj }}</dd>
+          </div>
+          <div class="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+            <dt class="text-[var(--text-secondary)]">{% trans 'Endereço' %}</dt>
+            <dd class="font-medium text-[var(--text-primary)]">
+              {{ object.rua }}<br>
+              {{ object.cidade }}{% if object.estado %}/{{ object.estado }}{% endif %}
+              {% if object.cep %}
+                <br>
+                {{ object.cep }}
+              {% endif %}
+            </dd>
+          </div>
+          <div class="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+            <dt class="text-[var(--text-secondary)]">{% trans 'Contato' %}</dt>
+            <dd class="font-medium text-[var(--text-primary)] space-y-1">
+              <p>{{ object.contato_nome }}</p>
+              <p>{{ object.contato_email }}</p>
+              <p>{{ object.contato_telefone }}</p>
+              {% if object.contato_whatsapp %}
+                <p>{{ object.contato_whatsapp }}</p>
+              {% endif %}
+              {% if object.chave_pix %}
+                <p>{% trans 'Chave Pix:' %} {{ object.chave_pix }}</p>
+              {% endif %}
+            </dd>
+          </div>
+          <div class="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+            <dt class="text-[var(--text-secondary)]">{% trans 'Dados bancários' %}</dt>
+            <dd class="font-medium text-[var(--text-primary)] space-y-1">
+              {% if object.codigo_banco %}
+                <p>{% trans 'Código do banco:' %} {{ object.codigo_banco }}</p>
+              {% endif %}
+              {% if object.nome_banco %}
+                <p>{% trans 'Nome do banco:' %} {{ object.nome_banco }}</p>
+              {% endif %}
+              {% if object.agencia %}
+                <p>{% trans 'Agência:' %} {{ object.agencia }}</p>
+              {% endif %}
+              {% if object.conta_corrente %}
+                <p>{% trans 'Conta corrente:' %} {{ object.conta_corrente }}</p>
+              {% endif %}
+              {% if not object.codigo_banco and not object.nome_banco and not object.agencia and not object.conta_corrente %}
+                <p class="text-[var(--text-secondary)]">{% trans 'Nenhum dado bancário informado.' %}</p>
+              {% endif %}
+            </dd>
+          </div>
+          <div class="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+            <dt class="text-[var(--text-secondary)]">{% trans 'Presença digital' %}</dt>
+            <dd class="font-medium text-[var(--text-primary)] space-y-3">
+              {% if object.icone_site %}
+                <img
+                  src="{{ object.icone_site.url }}"
+                  alt="{% blocktrans with nome=object.nome %}Ícone do site de {{ nome }}{% endblocktrans %}"
+                  class="h-12 w-12 rounded-full border border-[var(--border)] bg-white object-contain"
+                  loading="lazy"
+                >
+              {% endif %}
+              <div class="space-y-1">
+                <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">{% trans 'Nome no site' %}</p>
+                {% if object.nome_site %}
+                  <p class="text-sm text-[var(--text-primary)]">{{ object.nome_site }}</p>
+                {% else %}
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans 'Nome do site não informado.' %}</p>
+                {% endif %}
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">{% trans 'Site oficial' %}</p>
+                {% if object.site %}
+                  <a
+                    href="{{ object.site }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 text-[var(--text-primary)] hover:underline"
+                  >
+                    <span class="truncate" title="{{ object.site }}">{{ object.site }}</span>
+                  </a>
+                {% else %}
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans 'Site não informado.' %}</p>
+                {% endif %}
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">{% trans 'Feed de notícias' %}</p>
+                {% if object.feed_noticias %}
+                  <a
+                    href="{{ object.feed_noticias }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 text-[var(--text-primary)] hover:underline"
+                  >
+                    <span class="truncate" title="{{ object.feed_noticias }}">{{ object.feed_noticias }}</span>
+                  </a>
+                {% else %}
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans 'Feed de notícias não informado.' %}</p>
+                {% endif %}
+              </div>
+            </dd>
+          </div>
+          <div class="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+            <dt class="text-[var(--text-secondary)]">{% trans 'Identificador' %}</dt>
+            <dd class="font-medium text-[var(--text-primary)]">#{{ object.id }}</dd>
+          </div>
+        </dl>
+
+        {% if object.descricao %}
+          <section aria-labelledby="organizacao-description" class="space-y-2">
+            <h2 id="organizacao-description" class="text-lg font-semibold text-[var(--text-primary)]">{% trans 'Descrição' %}</h2>
+            <p class="text-sm leading-relaxed text-[var(--text-secondary)] whitespace-pre-line">{{ object.descricao }}</p>
+          </section>
+        {% endif %}
+      </div>
+      <footer class="card-footer flex flex-wrap justify-end gap-3">
+        {% if perms.organizacoes.change_organizacao %}
+          <a href="{% url 'organizacoes:update' object.id %}" class="btn btn-secondary">{% trans 'Editar' %}</a>
+        {% endif %}
+        {% if request.user.user_type == 'root' %}
+          {% if perms.organizacoes.delete_organizacao %}
+            <a
+              href="{% url 'organizacoes:delete' object.id %}"
+              hx-get="{% url 'organizacoes:delete' object.id %}"
+              hx-target="#modal"
+              hx-trigger="click"
+              hx-swap="innerHTML"
+              hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+              class="btn btn-danger"
+              aria-label="{% trans 'Excluir organização' %}"
+            >{% trans 'Excluir' %}</a>
+          {% endif %}
+          <form method="post" action="{% url 'organizacoes:toggle' object.id %}" class="inline-flex">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary">
+              {% if object.inativa %}{% trans 'Reativar' %}{% else %}{% trans 'Inativar' %}{% endif %}
+            </button>
+          </form>
+          <a href="{% url 'organizacoes:historico' object.id %}" class="btn btn-secondary">{% trans 'Histórico' %}</a>
+        {% endif %}
+        <a href="{% url 'organizacoes:list' %}" class="btn btn-secondary">{% trans 'Voltar' %}</a>
+      </footer>
+    </article>
+
+    {% if request.user.user_type != 'root' %}
+      <section class="space-y-6" aria-label="{% trans 'Relacionamentos da organização' %}">
+        <article class="card" id="usuarios-section">
+          <div class="card-body space-y-4">
+            {% include 'organizacoes/partials/usuarios_list.html' %}
+          </div>
+        </article>
+
+        <article class="card" id="nucleos-section">
+          <div class="card-body space-y-4">
+            {% include 'organizacoes/partials/nucleos_list.html' %}
+          </div>
+        </article>
+
+        <article class="card" id="eventos-section">
+          <div class="card-body space-y-4">
+            {% include 'organizacoes/partials/eventos_list.html' %}
+          </div>
+        </article>
+
+        <article class="card" id="posts-section">
+          <div class="card-body space-y-4">
+            {% include 'organizacoes/partials/posts_list.html' %}
+          </div>
+        </article>
+      </section>
+    {% endif %}
+  
+
+  <div id="modal" aria-live="polite"></div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% load i18n %}
+<div class="card-grid items-stretch gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2" role="list">
+  {% for user in usuarios %}
+    <div
+      role="listitem"
+      class="h-full"
+      data-membro-card
+      data-membro-label="{{ user.contact_name|default:user.display_name|default:user.username }}"
+      data-membro-search="{{ user.contact_name|default:'' }} {{ user.display_name|default:'' }} {{ user.username|default:'' }} {{ user.contato|default:'' }} {{ user.nome_fantasia|default:'' }} {{ user.razao_social|default:'' }}"
+    >
+      {% include '_components/card_usuario.html' with user=user %}
+    </div>
+  {% empty %}
+    <p class="col-span-full text-center text-sm text-[var(--text-secondary)] italic">
+      {{ empty_message|default:_('Nenhum usuário encontrado.') }}
+    </p>
+  {% endfor %}
+</div>

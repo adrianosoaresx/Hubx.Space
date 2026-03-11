@@ -1,0 +1,127 @@
+{% load i18n lucide_icons %}
+<section class="hero-with-neural relative isolate overflow-hidden text-white">
+  {% if evento.cover %}
+    <div class="absolute inset-0">
+      <img src="{{ evento.cover.url }}" alt="" class="h-full w-full object-cover" loading="lazy">
+      <div class="absolute inset-0 bg-black/45"></div>
+    </div>
+  {% else %}
+    <div class="absolute inset-0 bg-gradient-to-r from-[var(--hero-from)] to-[var(--hero-to)]"
+         style="--hero-from: var(--color-primary-500); --hero-to: var(--color-primary-700);"></div>
+  {% endif %}
+  <div class="hero-content relative z-10 w-full">
+    <div class="relative max-w-7xl mx-auto w-full px-4 py-10 pb-24 md:pb-10 min-h-[220px]">
+      <div class="absolute left-4 bottom-4 flex items-center">
+          <div class="shrink-0">
+            {% if evento.avatar %}
+              <img src="{{ evento.avatar.url }}" alt="{{ evento.titulo }}" class="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover ring-4 ring-white/50" loading="lazy">
+            {% else %}
+              <div class="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-white/20 text-2xl sm:text-3xl font-semibold uppercase ring-4 ring-white/30"
+                   role="img" aria-label="{{ evento.titulo }}">
+                {{ evento.titulo|slice:':1'|upper }}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="flex flex-col gap-3 md:items-end md:self-start md:absolute md:right-6 md:top-6">
+          {% if user.is_authenticated %}
+            <div class="flex flex-wrap items-center justify-center gap-3 md:justify-end">
+              {% if user.get_tipo_usuario != 'admin' and not user.is_associado %}
+                {% if inscricao and pode_cancelar %}
+                  <form method="post" action="{% url 'eventos:evento_cancelar_inscricao' evento.pk %}" class="flex">
+                    {% csrf_token %}
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      hx-get="{% url 'eventos:evento_cancelar_inscricao_modal' evento.pk %}"
+                      hx-target="#modal"
+                      hx-trigger="click"
+                      hx-swap="innerHTML"
+                      hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+                      aria-label="{% trans 'Cancelar inscrição' %}"
+                    >
+                      {% trans 'Cancelar inscrição' %}
+                    </button>
+                    <noscript>
+                      <button type="submit" class="btn btn-secondary" aria-label="{% trans 'Cancelar inscrição' %}">{% trans 'Cancelar inscrição' %}</button>
+                    </noscript>
+                  </form>
+                {% elif not inscricao and inscricao_permitida %}
+                  <form method="get" action="{% url 'eventos:inscricao_overview' evento.pk %}" class="flex">
+                    <button
+                      type="submit"
+                      class="btn btn-primary"
+                      aria-label="{% if vagas_disponiveis == 0 %}{% trans 'Inscrições esgotadas' %}{% else %}{% trans 'Quero me inscrever' %}{% endif %}"
+                      {% if vagas_disponiveis == 0 %}disabled aria-disabled="true"{% endif %}
+                    >
+                      {% if vagas_disponiveis == 0 %}
+                        {% trans 'Inscrições esgotadas' %}
+                      {% else %}
+                        {% trans 'Quero me inscrever' %}
+                      {% endif %}
+                    </button>
+                  </form>
+                {% elif inscricao %}
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans 'Inscrição confirmada' %}</p>
+                {% else %}
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans 'Inscrições indisponíveis para este evento.' %}</p>
+                {% endif %}
+              {% elif user.get_tipo_usuario == 'associado' or user.get_tipo_usuario == 'nucleado' or user.get_tipo_usuario == 'coordenador' %}
+                {% if inscricao and pode_cancelar %}
+                  <form method="post" action="{% url 'eventos:evento_cancelar_inscricao' evento.pk %}" class="flex">
+                    {% csrf_token %}
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      hx-get="{% url 'eventos:evento_cancelar_inscricao_modal' evento.pk %}"
+                      hx-target="#modal"
+                      hx-trigger="click"
+                      hx-swap="innerHTML"
+                      hx-on="htmx:beforeRequest: window.HubxModalTrigger = this;"
+                      aria-label="{% trans 'Cancelar inscrição' %}"
+                    >
+                      {% trans 'Cancelar inscrição' %}
+                    </button>
+                    <noscript>
+                      <button type="submit" class="btn btn-secondary" aria-label="{% trans 'Cancelar inscrição' %}">{% trans 'Cancelar inscrição' %}</button>
+                    </noscript>
+                  </form>
+                {% elif not inscricao and inscricao_permitida %}
+                  {% if vagas_disponiveis == 0 %}
+                    <p class="text-sm text-[var(--text-secondary)]">{% trans 'Inscrições esgotadas' %}</p>
+                  {% else %}
+                    <a
+                      href="{% url 'eventos:inscricao_overview' evento.pk %}"
+                      class="btn btn-primary"
+                      role="button"
+                      aria-label="{% trans 'Quero me inscrever' %}"
+                    >
+                      {% trans 'Quero me inscrever' %}
+                    </a>
+                  {% endif %}
+                {% elif inscricao %}
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans 'Inscrição confirmada' %}</p>
+                {% else %}
+                  <p class="text-sm text-[var(--text-secondary)]">{% trans 'Inscrições indisponíveis para este evento.' %}</p>
+                {% endif %}
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if pode_editar_evento %}
+            <div class="flex flex-wrap items-center justify-center gap-3 md:justify-end">
+              <a
+                href="{% url 'eventos:evento_convite_criar' evento_id=evento.pk %}"
+                class="btn btn-primary btn-lg inline-flex items-center gap-2"
+                aria-label="{% trans 'Incluir convite' %}"
+              >
+                {% lucide 'plus' class='h-4 w-4' aria_hidden='true' %}
+                {% trans 'Incluir convite' %}
+              </a>
+            </div>
+          {% endif %}
+        </div>
+
+    </div>
+  </div>
+</section>

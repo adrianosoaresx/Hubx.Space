@@ -1,0 +1,55 @@
+{% load i18n %}
+{% with modal_title_id="modal-promover-nucleacao-title-"|add:participacao.pk|stringformat:"s" modal_description_id="modal-promover-nucleacao-description-"|add:participacao.pk|stringformat:"s" %}
+<div
+  class="modal !active"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="{{ modal_title_id }}"
+  aria-describedby="{{ modal_description_id }}"
+  data-modal-root
+>
+  <div class="modal-content rounded-lg bg-[var(--bg-primary)] shadow-xl focus:outline-none">
+    <div class="flex items-start justify-between gap-4 border-b border-[var(--border)] px-6 py-4">
+      <h2 id="{{ modal_title_id }}" class="text-xl font-semibold text-[var(--text-primary)]">
+        {% trans "Confirmar promoção" %}
+      </h2>
+      <button type="button" class="btn btn-secondary" aria-label="{% trans 'Fechar modal' %}" data-modal-dismiss>
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    <div class="px-6 py-5 space-y-4">
+      <p class="text-sm text-[var(--text-secondary)]" id="{{ modal_description_id }}">
+        {% blocktrans with usuario=participacao.user.display_name|default:participacao.user.username nucleo=participacao.nucleo.nome %}
+          Deseja promover {{ usuario }} a nucleado no núcleo {{ nucleo }}?
+        {% endblocktrans %}
+      </p>
+      <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 text-sm text-[var(--text-secondary)]">
+        <p class="font-semibold text-[var(--text-primary)]">{{ participacao.user.display_name|default:participacao.user.username }}</p>
+        <p class="text-sm text-[var(--text-secondary)]">{{ participacao.user.email }}</p>
+        <p class="text-sm text-[var(--text-secondary)]">{% trans "Solicitação pendente" %}</p>
+      </div>
+      <form
+        method="post"
+        action="{{ form_action }}"
+        class="flex flex-col gap-3"
+        hx-post="{{ form_action }}"
+        hx-target="#modal"
+        hx-swap="none"
+        hx-on="htmx:beforeRequest: (function(){ const feedback = document.getElementById('nucleacao-promover-feedback'); if (feedback) { feedback.innerHTML = ''; } })(); htmx:responseError: (function(event){ const feedback = document.getElementById('nucleacao-promover-feedback'); if (!feedback) { return; } const xhr = event.detail && event.detail.xhr ? event.detail.xhr : null; const responseHtml = xhr ? xhr.responseText : ''; feedback.innerHTML = responseHtml || '<div class=&quot;rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800&quot; role=&quot;alert&quot;>{% trans 'Não foi possível promover este participante agora. Tente novamente.' %}</div>'; }); htmx:afterRequest: (function(event){ if (!event.detail.successful) { return; } const modalContainer = document.getElementById('modal'); if (modalContainer) { modalContainer.innerHTML = ''; } const xhr = event.detail && event.detail.xhr ? event.detail.xhr : null; const hasHxRefresh = xhr && xhr.getResponseHeader('HX-Refresh'); if (!hasHxRefresh) { window.location.reload(); } })();"
+      >
+        {% csrf_token %}
+        <div class="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:justify-end sm:gap-4">
+          <button type="button" class="btn btn-secondary" data-modal-dismiss>
+            {% trans "Cancelar" %}
+          </button>
+          <button type="submit" class="btn btn-primary">
+            {% trans "Promover" %}
+          </button>
+        </div>
+        <div id="nucleacao-promover-feedback" aria-live="polite"></div>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="{% static 'nucleos/js/nucleacao-promover-modal.js' %}" defer></script>
+{% endwith %}

@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load i18n lucide_icons %}
+
+{% block title %}{{ title|default:data_atual|date:'YEAR_MONTH_FORMAT' }}{% endblock %}
+
+{% block hero %}{% include 'eventos/componentes/hero_evento.html' with title=title|default:_('Calendário mensal') subtitle=subtitle action_template='eventos/partials/eventos/hero_calendario_mes_action.html' %}{% endblock %}
+
+{% block content %}
+  
+    <article class="card">
+      <div class="card-header space-y-4">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h2 class="text-xl font-semibold">{{ data_atual|date:'YEAR_MONTH_FORMAT' }}</h2>
+          {% if perms.eventos.add_evento %}
+            <a href="{% url 'eventos:evento_novo' %}" class="btn btn-primary inline-flex items-center gap-2" aria-label="{% trans 'Novo Evento' %}">
+              {% lucide 'plus' class='w-4 h-4' aria_hidden='true' %}
+              {% trans "Novo Evento" %}
+            </a>
+          {% endif %}
+
+        </div>
+        <div class="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
+          <a href="{% url 'eventos:calendario_mes' prev_ano prev_mes %}" class="btn btn-secondary btn-sm" aria-label="{% trans 'Mês anterior' %}">&laquo; {% trans "Anterior" %}</a>
+          <a href="{% url 'eventos:calendario_mes' next_ano next_mes %}" class="btn btn-secondary btn-sm" aria-label="{% trans 'Próximo mês' %}">{% trans "Próximo" %} &raquo;</a>
+        </div>
+      </div>
+
+      <div class="card-body space-y-6">
+        <div
+          class="grid grid-cols-7 gap-px overflow-hidden rounded-lg bg-[var(--bg-tertiary)] text-sm leading-tight sm:gap-0 sm:border sm:border-[var(--border)] sm:bg-[var(--bg-primary)] sm:[&>div]:border sm:[&>div]:border-[var(--border)] sm:[&>div:nth-child(7n)]:border-r-0 sm:[&>div:nth-last-child(-n+7)]:border-b-0"
+        >
+          {% for dia in dias_mes %}
+            <div
+              class="relative aspect-square rounded-md p-2 transition-all duration-300 sm:aspect-auto sm:h-28 sm:rounded-none sm:p-4 {% if dia.highlight %}{{ dia.highlight.cell }}{% else %}bg-[var(--bg-primary)] text-[var(--text-primary)]{% endif %} {% if not dia.mes_atual %}opacity-50{% endif %}"
+            >
+              <div class="flex items-start justify-between">
+                <span
+                  class="inline-flex h-6 w-6 items-center justify-center rounded-full text-center text-xs font-semibold sm:h-7 sm:w-7 sm:text-sm {% if dia.hoje %}bg-[var(--primary-light)] text-[var(--primary)] ring-2 ring-primary-500{% endif %}"
+                >
+                  {{ dia.data.day }}
+                </span>
+                {% if dia.eventos %}
+                  <span class="relative inline-flex items-center justify-center" title="{% blocktrans count count=dia.eventos|length %}{{ count }} evento{% plural %}{{ count }} eventos{% endblocktrans %}">
+                    <span class="sr-only">
+                      {% blocktrans count count=dia.eventos|length %}{{ count }} evento agendado{% plural %}{{ count }} eventos agendados{% endblocktrans %}
+                    </span>
+                    <span class="flex h-6 w-6 items-center justify-center rounded-full sm:h-7 sm:w-7 {% if dia.highlight %}{{ dia.highlight.icon }}{% else %}bg-[var(--success-light)] text-[var(--success)]{% endif %}">
+                      {% lucide 'sparkles' class='h-3 w-3 sm:h-4 sm:w-4' aria_hidden='true' %}
+                    </span>
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <section class="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-4" aria-label="{% trans 'Legenda de eventos' %}">
+          <header class="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+            {% lucide 'bookmark' class='h-4 w-4 text-[var(--primary)]' aria_hidden='true' %}
+            <span>{% trans "Legenda de eventos" %}</span>
+          </header>
+          <p class="mt-2 text-sm text-[var(--text-muted)]">{% trans "Clique em um dia para revelar todos os eventos programados." %}</p>
+
+          <div class="mt-4 space-y-3">
+            {% if dias_com_eventos %}
+              {% for dia in dias_com_eventos %}
+                <details
+                  class="group overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-sm shadow-sm transition hover:border-[var(--primary)]"
+                  {% if dia.hoje %}open{% endif %}
+                >
+                  <summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 font-medium text-[var(--text-primary)]">
+                    <span class="flex items-center gap-2">
+                      <span class="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold {% if dia.highlight %}{{ dia.highlight.badge }}{% else %}bg-[var(--primary-light)] text-[var(--primary)]{% endif %}">
+                        {{ dia.data.day }}
+                      </span>
+                      <span>
+                        <span class="block text-left text-sm font-semibold">{{ dia.data|date:"DATE_FORMAT" }}</span>
+                        <span class="block text-left text-xs text-[var(--text-muted)]">
+                          {% blocktrans count count=dia.eventos|length %}{{ count }} evento{% plural %}{{ count }} eventos{% endblocktrans %}
+                        </span>
+                      </span>
+                    </span>
+                    <span class="transition group-open:rotate-180">
+                      {% lucide 'chevron-down' class='h-4 w-4 text-[var(--text-muted)]' aria_hidden='true' %}
+                    </span>
+                  </summary>
+                  <div class="space-y-2 bg-[var(--bg-primary)] px-4 pb-4 pt-1">
+                    <ul class="space-y-2">
+                      {% for ev in dia.eventos %}
+                        <li class="rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2">
+                          <a href="{% url 'eventos:evento_detalhe' ev.id %}" class="flex flex-col gap-1 text-[var(--text-primary)] hover:text-[var(--primary)]">
+                            <span class="font-semibold">{{ ev.titulo }}</span>
+                            <span class="text-xs text-[var(--text-muted)]">
+                              {{ ev.data_inicio|date:"DATETIME_FORMAT" }}
+                            </span>
+                          </a>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </details>
+              {% endfor %}
+            {% else %}
+              <p class="text-sm text-[var(--text-muted)]">{% trans "Nenhum evento programado para este período." %}</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <div class="flex justify-end gap-3 border-t border-[var(--border)] pt-4">
+          {% url 'eventos:lista' as eventos_lista_url %}
+          {% include '_components/back_button.html' with fallback_href=eventos_lista_url show_icon=False %}
+        </div>
+
+      </div>
+    </article>
+
+
+{% endblock %}

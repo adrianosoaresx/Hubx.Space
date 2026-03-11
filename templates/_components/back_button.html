@@ -1,0 +1,55 @@
+{% load i18n lucide_icons string_filters back_button %}
+{% prepare_back_button as btn %}
+<a href="{{ btn.href|default:'#' }}"
+   class="{{ btn.class_attr }}"
+   aria-label="{{ btn.aria_label }}"
+   {% if btn.fallback_href %}data-fallback-href="{{ btn.fallback_href }}"{% endif %}
+   {% if btn.prevent_history %}data-prevent-history="{{ btn.prevent_history }}"{% endif %}
+   {% for attr in btn.htmx_attrs %}{{ attr.0 }}="{{ attr.1 }}"
+   {% endfor %}
+   onclick="return (function(el) {
+     if (el.dataset.preventHistory === 'true') {
+       return true;
+     }
+     var hasHx = false;
+     if (el.attributes) {
+       for (var i = 0; i < el.attributes.length; i++) {
+         if (el.attributes[i].name.indexOf('hx-') === 0) {
+           hasHx = true;
+           break;
+         }
+       }
+     }
+     if (hasHx) {
+       return true;
+     }
+     var ref = document.referrer;
+     if (ref) {
+       try {
+         var u = new URL(ref);
+         if (u.origin === window.location.origin) {
+           var current = window.location.pathname + window.location.search + window.location.hash;
+           var target = u.pathname + u.search + u.hash;
+           if (target && target !== current) {
+             history.back();
+             return false;
+           }
+         }
+       } catch (e) {}
+     }
+     var fallback = el.dataset.fallbackHref;
+     if (fallback) {
+       window.location.href = fallback;
+       return false;
+     }
+     return true;
+   })(this);">
+  {% if btn.show_icon %}
+    {% if btn.icon_size == 'w-3.5 h-3.5' %}
+      {% lucide btn.icon_name class='w-3.5 h-3.5' aria_hidden='true' %}
+    {% else %}
+      {% lucide btn.icon_name class='w-4 h-4' aria_hidden='true' %}
+    {% endif %}
+  {% endif %}
+  <span class="{{ btn.label_class }}">{{ btn.label }}</span>
+</a>

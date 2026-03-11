@@ -1,0 +1,28 @@
+{# Exceção: conteúdo HTMX flat injetado dinamicamente, sem wrapper de card. #}
+{% load i18n %}
+
+{% with card_template=list_card_template|default_if_none:'eventos/componentes/card_evento.html'|default:'eventos/componentes/card_evento.html' %}
+{% with card_item_name=item_context_name|default_if_none:'evento'|default:'evento' %}
+  <div
+    id="eventos-lista"
+    role="list"
+    aria-label="{{ list_aria_label|default_if_none:_('Lista de eventos')|default:_('Lista de eventos') }}"
+    class="card-grid items-stretch gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2"
+  >
+    {% for evento in object_list %}
+      {% include card_template with item=evento evento=evento item_context_name=card_item_name %}
+    {% empty %}
+      <p class="col-span-full text-center text-[var(--text-muted)]">{{ empty_message|default_if_none:_('Nenhum evento encontrado.')|default:_('Nenhum evento encontrado.') }}</p>
+    {% endfor %}
+  </div>
+{% endwith %}
+{% endwith %}
+{% with pagination_hx_target=list_pagination_hx_target|default:pagination_hx_target|default:'#eventos-conteudo' %}
+{% with pagination_hx_get=list_pagination_hx_get|default:pagination_hx_get|default:request.path %}
+{% with pagination_hx_indicator=list_pagination_hx_indicator|default:pagination_hx_indicator|default:'#eventos-loading' %}
+  {% include '_partials/pagination.html' with page_obj=page_obj querystring=querystring hx_target=pagination_hx_target hx_get=pagination_hx_get hx_push_url=list_pagination_hx_push_url|default:pagination_hx_push_url|default:'true' hx_indicator=pagination_hx_indicator %}
+{% endwith %}
+{% endwith %}
+{% endwith %}
+
+{% include '_partials/htmx_filter_state.html' with hx_swap_oob='true' state_id=list_filter_state_id|default:filter_state_id|default:'eventos-filter-state' state_value=current_filter|default:'todos' state_classes=list_filter_state_classes|default:filter_state_classes|default:'hidden' %}

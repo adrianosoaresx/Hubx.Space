@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load i18n lucide_icons static %}
+
+{% block title %}{{ list_title|default_if_none:_('Núcleos')|default:_('Núcleos') }}{% endblock %}
+
+{% block hero %}
+{% include list_hero_template|default_if_none:'nucleos/componentes/hero_nucleo.html'|default:'nucleos/componentes/hero_nucleo.html' with title=list_title|default_if_none:_('Núcleos')|default:_('Núcleos') action_template=list_hero_action_template|default_if_none:'nucleos/hero_actions_nucleo.html'|default:'nucleos/hero_actions_nucleo.html' total_nucleos=total_nucleos total_membros=total_membros_org total_eventos=total_eventos_org total_eventos_ativos=total_eventos_ativos_org total_eventos_concluidos=total_eventos_concluidos_org %}
+
+{% endblock %}
+
+{% block content %}
+
+  <div class="space-y-6">
+
+    <div>
+      <form
+        class="flex flex-col gap-3 md:flex-row md:items-center"
+        role="search"
+        novalidate
+        data-nucleos-search-form
+        data-initial-search-term="{{ nucleos_search_term }}"
+        data-feedback-found-template="{% blocktrans with term='__term__' %}Resultado encontrado: {{ term }}.{% endblocktrans %}"
+        data-feedback-not-found-template="{% blocktrans with term='__term__' %}Nenhum núcleo correspondente a {{ term }}.{% endblocktrans %}"
+        data-feedback-empty="{% trans 'Digite um termo para buscar núcleos.' %}"
+      >
+        <div class="flex w-full items-center gap-2">
+          <label for="nucleos-search" class="sr-only">{% trans "Buscar núcleos" %}</label>
+          <input
+            type="search"
+            id="nucleos-search"
+            name="q"
+            value="{{ nucleos_search_term }}"
+            autocomplete="off"
+            placeholder="{% trans 'Buscar por nome ou descrição do núcleo' %}"
+            class="input input-bordered w-full"
+            data-nucleos-search-input
+            aria-describedby="nucleos-search-feedback"
+          />
+          <button type="submit" class="btn btn-secondary shrink-0" aria-label="{% trans 'Buscar' %}">
+            {% lucide 'search' class='h-4 w-4' aria_hidden='true' %}
+          </button>
+        </div>
+        {% for key, values in request.GET.lists %}
+          {% if key != 'q' and key != 'page' and key|slice:'-5:' != '_page' %}
+            {% for value in values %}
+              <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </form>
+      <p
+        class="text-sm text-[var(--text-secondary)]"
+        data-nucleos-search-feedback
+        id="nucleos-search-feedback"
+        hidden
+        role="status"
+        aria-live="polite"
+      ></p>
+    </div>
+    <div class="space-y-6">
+      {% for section in nucleo_sections %}
+        <details
+          class="card group"
+          data-nucleos-section="{{ section.key }}"
+          data-nucleos-section-total="{{ section.page_obj.paginator.count }}"
+        >
+          <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+            <div class="flex items-start gap-3">
+              <span class="{{ section.icon_classes }}">
+                {% lucide section.icon class='h-6 w-6' aria_hidden='true' %}
+              </span>
+              <div class="space-y-1">
+                <p class="text-xl font-semibold">{{ section.title }}</p>
+                <p class="text-sm text-[var(--text-secondary)]">
+                  {% blocktrans count count=section.total %}
+                    {{ count }} núcleo no total
+                  {% plural %}
+                    {{ count }} núcleos no total
+                  {% endblocktrans %}
+                </p>
+              </div>
+            </div>
+            <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+              {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+            </span>
+          </summary>
+          <div>
+            {% include 'nucleos/partials/nucleo_carousel.html' with section=section page=section.page_obj fetch_url=section.fetch_url search_term=section.search_term|default:nucleos_search_term empty_message=section.empty_message scope=section.scope|default:nucleos_carousel_scope classificacao_filter=selected_classificacao %}
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+
+    {% include '_partials/pagination.html' with page_obj=page_obj querystring=querystring %}
+    {% block list_footer %}{% endblock %}
+
+    {% if show_nucleacao_solicitacoes %}
+      {% include 'nucleos/partials/nucleacao_solicitacoes_carousel.html' %}
+    {% endif %}
+  </div>
+
+  <div id="modal" role="presentation" aria-live="polite"></div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+  <script type="module" src="{% static 'nucleos/js/nucleos-search.js' %}"></script>
+{% endblock %}

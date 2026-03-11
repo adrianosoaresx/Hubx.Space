@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static i18n %}
+
+{% block extra_css %}
+  {% include 'accounts/partials/force_sidebar_collapsed.html' %}
+{% endblock %}
+
+{% block title %}{% trans "Verificação em duas etapas" %} - HubX{% endblock %}
+
+{% block hero %}
+  {% translate "Verifique sua identidade" as totp_hero_title %}
+  {% if is_email_otp %}
+    {% translate "Digite o código enviado para seu e-mail para continuar." as totp_hero_subtitle %}
+  {% else %}
+    {% translate "Digite o código do seu aplicativo autenticador para continuar." as totp_hero_subtitle %}
+  {% endif %}
+  {% include 'accounts/componentes/hero_auth.html' with title=totp_hero_title subtitle=totp_hero_subtitle %}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <div class="card" role="dialog">
+    <div class="card-body space-y-6">
+      <p class="text-center text-sm text-[var(--text-secondary)]">
+        {% if is_email_otp %}
+          {% blocktrans %}Informe o código enviado para {{ email }}.{% endblocktrans %}
+        {% else %}
+          {% blocktrans %}Informe o código de verificação do aplicativo para {{ email }}.{% endblocktrans %}
+        {% endif %}
+      </p>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      {% if has_multiple_mfa_methods %}
+        <div class="flex flex-wrap justify-center gap-2">
+          {% if 'totp' in available_mfa_methods %}
+            <form method="post" action="{% url 'accounts:login_totp' %}">
+              {% csrf_token %}
+              <button type="submit" name="switch_method" value="totp" class="btn btn-outline btn-sm">
+                {% trans "Usar aplicativo" %}
+              </button>
+            </form>
+          {% endif %}
+          {% if 'email_otp' in available_mfa_methods %}
+            <form method="post" action="{% url 'accounts:login_totp' %}">
+              {% csrf_token %}
+              <button type="submit" name="switch_method" value="email_otp" class="btn btn-outline btn-sm">
+                {% trans "Usar e-mail" %}
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <form method="post" action="{% url 'accounts:login_totp' %}" class="space-y-5">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next_url|default:'' }}">
+        {% for field in form %}
+          {% include '_forms/field.html' with field=field %}
+        {% endfor %}
+        {% if is_email_otp %}
+          <button type="submit" name="action" value="resend_email_code" class="btn btn-outline w-full">
+            {% trans "Reenviar código por e-mail" %}
+          </button>
+        {% endif %}
+        <button type="submit" class="btn btn-primary w-full">
+          {% trans "Confirmar" %}
+        </button>
+      </form>
+
+      <div class="text-center text-sm">
+        <a href="{% url 'accounts:login' %}" class="text-[var(--primary)] hover:underline">
+          {% trans "Trocar de conta" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

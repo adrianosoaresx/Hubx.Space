@@ -1,0 +1,106 @@
+{% load i18n %}
+{% with modal_title_id="modal-delete-account-title" modal_description_id="modal-delete-account-description" %}
+<div
+  class="modal !active"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="{{ modal_title_id }}"
+  aria-describedby="{{ modal_description_id }}"
+  data-modal-root
+>
+  <div class="modal-content rounded-lg bg-[var(--bg-primary)] shadow-xl focus:outline-none">
+    <div class="flex items-start justify-between gap-4 border-b border-[var(--border)] px-6 py-4">
+      <h2 id="{{ modal_title_id }}" class="text-xl font-semibold text-[var(--text-primary)]">
+        {% trans "Excluir conta" %}
+      </h2>
+      <button
+        type="button"
+        class="btn btn-secondary"
+        aria-label="{% trans 'Fechar modal' %}"
+        data-modal-dismiss
+      >
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    <div class="px-6 py-5 space-y-5">
+      <p id="{{ modal_description_id }}" class="text-sm text-[var(--text-secondary)]">
+        {% blocktrans %}
+          A exclusão da conta é permanente e removerá todos os dados associados. Esta ação não pode ser desfeita.
+          Apenas contas inativas podem ser excluídas definitivamente; desative antes de prosseguir.
+        {% endblocktrans %}
+      </p>
+      {% if not is_self %}
+        <p class="text-sm text-[var(--text-secondary)]">
+          {% blocktrans with nome=target_user.get_full_name %}
+            Você está prestes a excluir a conta de {{ nome }}.
+          {% endblocktrans %}
+        </p>
+      {% endif %}
+      {% if error_message %}
+        <div class="alert alert-error" role="alert">
+          <p class="text-sm">{{ error_message }}</p>
+        </div>
+      {% endif %}
+      <form
+        method="post"
+        action="{{ form_action|default:request.get_full_path }}"
+        class="space-y-4"
+        hx-post="{{ form_action|default:request.get_full_path }}"
+        hx-target="#modal"
+        hx-swap="innerHTML"
+      >
+        {% csrf_token %}
+        {% if not is_self %}
+          <input type="hidden" name="public_id" value="{{ target_user.public_id }}" />
+          <input type="hidden" name="username" value="{{ target_user.username }}" />
+        {% endif %}
+        <div class="space-y-2">
+          <label for="confirm" class="block text-sm font-medium text-[var(--text-secondary)]">
+            {% trans "Digite EXCLUIR para confirmar" %}
+          </label>
+          <input
+            type="text"
+            name="confirm"
+            id="confirm"
+            required
+            inputmode="latin"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            value="{{ confirm_value|default_if_none:'' }}"
+            placeholder="{{ confirmation_token }}"
+            class="w-full rounded-md border px-3 py-2 bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-primary)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+            aria-describedby="delete-confirm-helper"
+            data-confirm-input
+            data-confirm-token="{{ confirmation_token }}"
+          />
+          <p id="delete-confirm-helper" class="text-xs text-[var(--text-tertiary)]">
+            {% blocktrans with token=confirmation_token %}
+              Digite {{ token }} exatamente como mostrado para habilitar a exclusão.
+            {% endblocktrans %}
+          </p>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:justify-end sm:gap-4 border-t border-[var(--border)] pt-4">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-modal-dismiss
+          >
+            {% trans "Cancelar" %}
+          </button>
+          <button
+            type="submit"
+            class="btn btn-danger"
+            data-confirm-submit
+            disabled
+            aria-disabled="true"
+          >
+            {% trans "Confirmar exclusão" %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="{% static 'accounts/js/account-delete-modal.js' %}" defer></script>
+{% endwith %}

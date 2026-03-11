@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static i18n %}
+
+{% block extra_css %}
+  {% include 'accounts/partials/force_sidebar_collapsed.html' %}
+{% endblock %}
+
+{% block title %}{% trans "Entrar" %} - HubX{% endblock %}
+
+{% block hero %}
+  {% translate "Bem-vindo de volta" as login_hero_title %}
+  {% translate "Entre para acessar sua conta e conectar-se à sua rede." as login_hero_subtitle %}
+  {% include 'accounts/componentes/hero_auth.html' with title=login_hero_title subtitle=login_hero_subtitle %}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <div class="card" role="dialog">
+    <div class="card-body space-y-6">
+      <p class="text-center text-sm text-[var(--text-secondary)]">
+        {% trans "Informe seu e-mail e senha cadastrados para continuar." %}
+      </p>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'accounts:login' %}" class="space-y-5" id="login-form">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next_url|default:'' }}">
+        {% for field in form %}
+          {% include '_forms/field.html' with field=field %}
+        {% endfor %}
+        <div class="flex items-center gap-2 text-left">
+          <input type="checkbox" id="toggle-login-password" class="form-checkbox text-[var(--primary)] focus:ring-[var(--primary)]">
+          <label for="toggle-login-password" class="text-sm text-[var(--text-primary)]">
+            {% trans "Exibir senha" %}
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">
+          {% trans "Entrar" %}
+        </button>
+      </form>
+      <script src="{% static 'accounts/js/login-password-toggle.js' %}" defer></script>
+
+      <div class="text-center space-y-2">
+        <a href="{% url 'accounts:password_reset' %}" class="text-sm text-[var(--primary)] hover:underline">
+          {% trans "Esqueceu sua senha?" %}
+        </a>
+        <div>
+          <a href="{% url 'accounts:resend_confirmation' %}" class="text-sm text-[var(--primary)] hover:underline">
+            {% trans "Reenviar confirmação de e-mail" %}
+          </a>
+        </div>
+      </div>
+
+      <div class="text-center text-sm text-[var(--text-secondary)]">
+        {% trans "Não tem uma conta?" %}
+        <a href="{% url 'tokens:token' %}" class="text-[var(--primary)] hover:underline">
+          {% trans "Cadastre-se gratuitamente" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

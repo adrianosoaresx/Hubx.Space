@@ -1,0 +1,492 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-22 09:47-0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: eventos/api.py:185
+msgid "Material aprovado com sucesso."
+msgstr ""
+
+#: eventos/api.py:194
+msgid "Motivo de devolução é obrigatório."
+msgstr ""
+
+#: eventos/api.py:219
+msgid "Material devolvido com sucesso."
+msgstr ""
+
+#: eventos/forms.py:107
+msgid "O valor pago deve ser positivo."
+msgstr ""
+
+#: eventos/forms.py:150
+msgid "Formato de imagem não permitido."
+msgstr ""
+
+#: eventos/forms.py:152
+msgid "Imagem excede o tamanho máximo de 10MB."
+msgstr ""
+
+#: eventos/forms.py:195
+msgid "CNPJ deve conter 14 dígitos."
+msgstr ""
+
+#: eventos/forms.py:197
+msgid "CNPJ inválido."
+msgstr ""
+
+#: eventos/forms.py:54
+msgid "Participantes (lotação)"
+msgstr "Participantes (lotação)"
+
+#: eventos/models.py:258
+msgid "A data de fim deve ser posterior à data de início."
+msgstr ""
+
+#: eventos/models.py:270
+msgid "Deve ser um valor positivo."
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/_lista_eventos_dia.html:4
+#, python-format
+msgid "Eventos de %(date)s"
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/_lista_eventos_dia.html:6
+msgid "itens"
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/_lista_eventos_dia.html:7
+msgid "Lista de eventos do dia"
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/_lista_eventos_dia.html:14
+msgid "Sem eventos."
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/calendario.html:4
+msgid "Próximos 30 dias com eventos"
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/calendario.html:28
+msgid "evento(s)"
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/calendario.html:69
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:6
+msgid "Detalhes"
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/calendario.html:80
+msgid "Nenhum evento nos próximos 30 dias."
+msgstr ""
+
+#: eventos/templates/eventos/partials/calendario/calendario_mes.html:12
+#: eventos/templates/eventos/partials/calendario/calendario_mes.html:16
+msgid "Novo Evento"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/_nav.html:3
+msgid "Seções de eventos"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/_nav.html:11
+#: eventos/templates/eventos/partials/eventos/evento_list.html:17
+#: eventos/views.py:73 eventos/views.py:85
+msgid "Eventos"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/_nav.html:20
+msgid "Inscrições"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/_nav.html:29 eventos/views.py:858
+msgid "Parcerias"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/_nav.html:47
+#: eventos/templates/eventos/partials/eventos/tarefa_list.html:5
+#: eventos/views.py:456
+msgid "Tarefas"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/create.html:3
+#: eventos/views.py:285
+msgid "Adicionar evento"
+msgstr ""
+
+#: eventos/views.py:286
+msgid "Cadastre novos eventos para a sua organização."
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/delete.html:4
+#: eventos/views.py:360
+msgid "Remover Evento"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/delete.html:5
+#, python-format
+msgid "Tem certeza que deseja remover <strong>%(title)s</strong>?"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:11
+msgid "Informações"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:14
+msgid "Início"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:15
+msgid "Fim"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:16
+msgid "Local"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:17
+msgid "Cidade"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:18
+msgid "Estado"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:19
+msgid "CEP"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:21
+msgid "Contato"
+msgstr ""
+
+#: eventos/templates/eventos/detail.html:84
+msgid "Máximo de participantes"
+msgstr "Máximo de participantes"
+
+#: eventos/templates/eventos/detail.html:91
+msgid "Valor"
+msgstr "Valor"
+
+#: eventos/templates/eventos/partials/eventos/detail.html:30
+msgid "Lista de espera"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:32
+msgid "Habilitada"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:34
+msgid "Desabilitada"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:38
+#: eventos/templates/eventos/partials/eventos/update.html:28
+msgid "Orçamento"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:41
+#: eventos/templates/eventos/partials/eventos/update.html:32
+msgid "Orçamento estimado"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:44
+#: eventos/templates/eventos/partials/eventos/update.html:35
+msgid "Valor gasto"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:55
+#: eventos/templates/eventos/partials/inscricao/inscricao_form.html:3
+#: eventos/views.py:818
+msgid "Inscrição"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:82
+msgid "Cancelar inscrição"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:86
+msgid "Inscrever-se"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:94
+#: eventos/templates/eventos/partials/eventos/update.html:45
+msgid "Inscritos"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:120
+#: eventos/templates/eventos/partials/eventos/update.html:68
+msgid "Nenhum inscrito."
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/detail.html:127
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:55
+msgid "Voltar"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/evento_list.html:11
+msgid "Resumo"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/evento_list.html:18
+msgid "Ativos"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/evento_list.html:19
+msgid "Realizados"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/evento_list.html:22
+msgid "Lista de eventos"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/evento_list.html:26
+msgid "Nenhum evento encontrado."
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/hero_evento_list_action.html:5
+msgid "Novo evento"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:13
+msgid "Data de início"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:14
+msgid "Data de fim"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:15
+msgid "Responsável"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:16
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:15
+msgid "Status"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:23
+msgid "Logs"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:31
+msgid "Data"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:32
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:13
+msgid "Usuário"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:33
+msgid "Ação"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_detail.html:48
+msgid "Nenhum log disponível."
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_form.html:4
+#: eventos/views.py:497
+msgid "Editar Tarefa"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_form.html:4
+msgid "Cadastrar Tarefa"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_list.html:6
+#: eventos/views.py:476
+msgid "Nova Tarefa"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/tarefa_list.html:19
+msgid "Nenhuma tarefa encontrada."
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/update.html:3
+#: eventos/views.py:319
+msgid "Editar Evento"
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/update.html:92
+msgid "Orçamento atualizado com sucesso."
+msgstr ""
+
+#: eventos/templates/eventos/partials/eventos/update.html:95
+#: eventos/templates/eventos/partials/eventos/update.html:99
+msgid "Erro ao atualizar orçamento."
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/checkin_form.html:6
+msgid "Código do check-in"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/checkin_form.html:7
+msgid "Escaneie ou digite o código"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/checkin_form.html:11
+msgid "Confirmar presença"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/checkin_form.html:23
+msgid "Check-in realizado com sucesso!"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/checkin_form.html:51
+msgid "Erro ao realizar check-in"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:16
+msgid "Posição na espera"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:17
+msgid "Presente"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:18
+msgid "Valor Pago"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:19
+msgid "Método de Pagamento"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:20
+msgid "Comprovante"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:21
+msgid "Observação"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:43
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:50
+msgid "Ver"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:51
+msgid "Check-in"
+msgstr ""
+
+#: eventos/templates/eventos/partials/inscricao/inscricao_list.html:56
+msgid "Nenhuma inscrição encontrada."
+msgstr ""
+
+#: eventos/validators.py:22
+msgid "Tipo de arquivo não permitido."
+msgstr ""
+
+#: eventos/validators.py:24
+msgid "Extensão do arquivo não corresponde ao tipo MIME."
+msgstr ""
+
+#: eventos/validators.py:30
+msgid "Arquivo excede o tamanho máximo permitido."
+msgstr ""
+
+#: eventos/views.py:297
+msgid "Evento criado com sucesso."
+msgstr ""
+
+#: eventos/views.py:338
+msgid "Evento atualizado com sucesso."
+msgstr ""
+
+#: eventos/views.py:376
+msgid "Evento removido."
+msgstr ""
+
+#: eventos/views.py:541 eventos/views.py:824
+msgid "Administradores não podem se inscrever em eventos."
+msgstr ""
+
+#: eventos/views.py:548
+msgid "Inscrição cancelada."
+msgstr ""
+
+#: eventos/views.py:554 eventos/views.py:838
+msgid "Inscrição realizada."
+msgstr ""
+
+#: eventos/views.py:556
+msgid "Você está na lista de espera."
+msgstr ""
+
+#: eventos/views.py:569
+msgid "Acesso negado."
+msgstr ""
+
+#: eventos/views.py:580
+msgid "Inscrito removido."
+msgstr ""
+
+#: eventos/views.py:605
+msgid "Avaliar evento"
+msgstr ""
+
+#: eventos/views.py:642
+msgid "Feedback registrado com sucesso."
+msgstr ""
+
+#: eventos/views.py:726
+msgid "Parceria já avaliada."
+msgstr ""
+
+#: eventos/views.py:732
+msgid "Nota inválida."
+msgstr ""
+
+#: eventos/views.py:737
+msgid "Avaliação registrada com sucesso."
+msgstr ""
+
+#: eventos/views.py:770
+msgid "Check-in do evento"
+msgstr ""
+
+#: eventos/views.py:796
+msgid "Lista de Inscrições"
+msgstr ""
+
+#: eventos/views.py:898
+msgid "Evento de outra organização"
+msgstr ""
+
+#: eventos/views.py:908
+msgid "Editar Parceria"
+msgstr ""
+
+#: eventos/views.py:1012
+msgid "Evento de outra organização ou núcleo"
+msgstr ""
+
+#: eventos/views.py:1079
+msgid "Informe o prazo limite de resposta."
+msgstr ""
+
+#: eventos/views.py:1083
+msgid "Prazo limite inválido."
+msgstr ""
+
+#: eventos/views.py:1099
+msgid "Informe o motivo da recusa."
+msgstr ""

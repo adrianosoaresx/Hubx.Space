@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans 'Promover membro' %}{% endblock %}
+
+{% block hero %}
+  {% include 'membros/componentes/hero_membros.html' with title=_('Promover membro') action_template='membros/componentes/hero_action.html' filter_target='#membros-grid' filter_indicator='#membros-loading' %}
+{% endblock %}
+
+{% block content %}
+
+<article class="card">
+  <header class="card-header">
+    <h2 class="text-xl font-semibold">{% trans 'Promover membro' %}</h2>
+  </header>
+  <div class="card-body space-y-6">
+    <form method="get" class="space-y-6" data-promover-search-form>
+      {% trans 'Busque por nome ou CNPJ' as search_placeholder %}
+      <div>
+        {% if form %}
+          {% with placeholder_attr='placeholder:'|add:search_placeholder %}
+            {% include '_forms/field.html' with field=form.q|attr:"id:membro-search"|attr:"type:search"|attr:placeholder_attr|attr:"data-search-input:1" %}
+          {% endwith %}
+        {% else %}
+          {% include '_forms/field.html' with id='membro-search' name='q' type='search' value=search_term label=_('Buscar membro') placeholder=search_placeholder attrs='data-search-input="true"' %}
+        {% endif %}
+      </div>
+      <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+        <button type="button" class="btn btn-secondary hidden" data-clear-search>
+          {% trans 'Limpar busca' %}
+        </button>
+        <button type="submit" class="btn btn-primary">{% trans 'Buscar' %}</button>
+      </div>
+    </form>
+
+    <div id="membros-grid">
+      {% include 'membros/partials/promover_carousel.html' with page=page_obj paginator=page_obj.paginator usuarios=membros empty_message=promover_empty_message current_filter=current_filter search_term=search_term fetch_url=promover_carousel_fetch_url has_search=has_search %}
+    </div>
+
+    <div class="pt-4 border-t border-[var(--border)]">
+      <div id="membros-loading" class="htmx-indicator text-center text-sm text-[var(--text-secondary)]" role="status" aria-live="polite">
+        {% trans 'Carregando membros...' %}
+      </div>
+    </div>
+  </div>
+</article>
+
+
+{# Container HTMX utilizado para injeção de modais dinâmicos fora do cartão principal. #}
+<div id="modal"></div>
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script src="{% static 'js/carousel.js' %}"></script>
+  <script>
+    (function () {
+      const form = document.querySelector('[data-promover-search-form]');
+      if (!form) {
+        return;
+      }
+      const input = form.querySelector('[data-search-input]');
+      const clearButton = form.querySelector('[data-clear-search]');
+      if (!input || !clearButton) {
+        return;
+      }
+
+      const toggleClearButton = () => {
+        const hasValue = Boolean(input.value && input.value.trim());
+        clearButton.classList.toggle('hidden', !hasValue);
+      };
+
+      toggleClearButton();
+      input.addEventListener('input', toggleClearButton);
+      clearButton.addEventListener('click', function () {
+        input.value = '';
+        toggleClearButton();
+        input.focus();
+        form.submit();
+      });
+    })();
+    (function() {
+      const stateId = 'membros-filter-state';
+
+      function parseClasses(value) {
+        return value ? value.split(/\s+/).filter(Boolean) : [];
+      }
+
+      function updateFilterButtons() {
+        const stateEl = document.getElementById(stateId);
+        if (!stateEl) {
+          return;
+        }
+        const currentFilter = stateEl.dataset.currentFilter || 'todos';
+        const buttons = document.querySelectorAll('[data-membros-filter-card]');
+
+        buttons.forEach((button) => {
+          const activeClasses = parseClasses(button.dataset.activeClass || '');
+          const isActive = button.dataset.membrosFilterCard === currentFilter;
+          button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+          activeClasses.forEach((cls) => {
+            if (cls) {
+              button.classList.toggle(cls, isActive);
+            }
+          });
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', updateFilterButtons);
+      document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target && event.target.id === 'membros-grid') {
+          updateFilterButtons();
+        }
+      });
+    })();
+  </script>
+{% endblock %}

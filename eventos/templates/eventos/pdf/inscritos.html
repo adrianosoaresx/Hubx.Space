@@ -1,0 +1,131 @@
+{% load i18n l10n tz %}
+{% localtime on %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>{% blocktrans with titulo=evento.titulo %}Lista de inscritos - {{ titulo }}{% endblocktrans %}</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 24px;
+        color: #111827;
+        font-size: 13px;
+        line-height: 1.45;
+        background-color: #ffffff;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 16px;
+        margin: 20px 0 6px;
+      }
+      p {
+        margin: 0 0 4px;
+      }
+      header p {
+        font-size: 12.5px;
+      }
+      header p:last-of-type {
+        margin-bottom: 0;
+      }
+      .summary {
+        display: inline-block;
+        padding: 6px 10px;
+        margin-top: 8px;
+        border-radius: 8px;
+        background-color: #f9fafb;
+        font-size: 12.5px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+        font-size: 12px;
+      }
+      th,
+      td {
+        border: 1px solid #d1d5db;
+        padding: 6px 10px;
+        text-align: left;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      thead th {
+        background-color: #eef2ff;
+        font-weight: 600;
+      }
+      tbody tr:nth-child(even) {
+        background-color: #f9fafb;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>{% trans "Lista de inscritos" %}</h1>
+      <p>
+        <strong>{% trans "Evento" %}:</strong>
+        {{ evento.titulo }}
+      </p>
+      {% if evento.data_inicio %}
+        <p>
+          <strong>{% trans "Período" %}:</strong>
+          {{ evento.data_inicio|date:"SHORT_DATETIME_FORMAT" }}
+          {% if evento.data_fim %}
+            – {{ evento.data_fim|date:"SHORT_DATETIME_FORMAT" }}
+          {% endif %}
+        </p>
+      {% endif %}
+      <p>
+        <strong>{% trans "Gerado em" %}:</strong>
+        {{ generated_at|date:"SHORT_DATETIME_FORMAT" }}
+      </p>
+    </header>
+
+    <section>
+      <h2>{% trans "Inscrições confirmadas" %}</h2>
+      <p class="summary">
+        <strong>{% trans "Total de inscritos" %}:</strong>
+        {{ inscricoes|length }}
+      </p>
+      <table aria-describedby="inscritos">
+        <thead>
+          <tr>
+            <th scope="col">{% trans "Participante" %}</th>
+            <th scope="col">{% trans "E-mail" %}</th>
+            <th scope="col">{% trans "Telefone" %}</th>
+            <th scope="col">{% trans "Confirmado em" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inscricao in inscricoes %}
+            <tr>
+              <td>{{ inscricao.participante_nome|default:"-" }}</td>
+              <td>{{ inscricao.user.email|default:"-" }}</td>
+              <td>{{ inscricao.user.phone_number|default:"-" }}</td>
+              <td>
+                {% if inscricao.data_confirmacao %}
+                  {{ inscricao.data_confirmacao|date:"SHORT_DATETIME_FORMAT" }}
+                {% else %}
+                  –
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4">{% trans "Nenhuma inscrição confirmada até o momento." %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </body>
+</html>
+{% endlocaltime %}

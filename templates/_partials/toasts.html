@@ -1,0 +1,15 @@
+{% if messages %}
+<ul id="messages" hx-swap-oob="true" class="fixed top-4 right-4 space-y-2 z-50">
+  {% for message in messages %}
+    <li class="px-4 py-2 rounded card bg-[var(--bg-secondary)] text-[var(--text-primary)]">
+      {{ message }}
+    </li>
+  {% endfor %}
+</ul>
+<script>
+  setTimeout(() => {
+    const el = document.getElementById('messages');
+    if (el) { el.remove(); }
+  }, 4000);
+</script>
+{% endif %}

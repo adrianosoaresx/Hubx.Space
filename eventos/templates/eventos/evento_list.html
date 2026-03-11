@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% load i18n l10n lucide_icons static %}
+
+{% block title %}{{ title|default:_('Eventos') }}{% endblock %}
+
+{% block hero %}{% include 'eventos/componentes/hero_evento.html' with title=title subtitle=subtitle action_template='eventos/partials/eventos/hero_evento_list_action.html' total_eventos=total_eventos total_eventos_planejamento=total_eventos_planejamento total_eventos_ativos=total_eventos_ativos total_eventos_concluidos=total_eventos_concluidos total_eventos_cancelados=total_eventos_cancelados planejamento_filter_url=planejamento_filter_url ativos_filter_url=ativos_filter_url realizados_filter_url=realizados_filter_url cancelados_filter_url=cancelados_filter_url todos_filter_url=todos_filter_url is_planejamento_filter_active=is_planejamento_filter_active is_ativos_filter_active=is_ativos_filter_active is_realizados_filter_active=is_realizados_filter_active is_cancelados_filter_active=is_cancelados_filter_active %}{% endblock %}
+
+{% block content %}
+
+  <div class="space-y-6">
+
+    <div>
+      <form
+        class="flex flex-col gap-3 md:flex-row md:items-center"
+        role="search"
+        novalidate
+        data-eventos-search-form
+        data-initial-search-term="{{ eventos_search_query|default:'' }}"
+        data-feedback-found-template="{% blocktrans with term='__term__' %}Resultado encontrado: {{ term }}.{% endblocktrans %}"
+        data-feedback-not-found-template="{% blocktrans with term='__term__' %}Nenhum evento correspondente a {{ term }}.{% endblocktrans %}"
+        data-feedback-empty="{% trans 'Digite um termo para buscar eventos.' %}"
+      >
+        <div class="flex w-full items-center gap-2">
+          <label for="eventos-search" class="sr-only">{% trans "Buscar eventos" %}</label>
+          <input
+            type="search"
+            id="eventos-search"
+            name="q"
+            value="{{ eventos_search_query|default:q|default:'' }}"
+            autocomplete="off"
+            placeholder="{% trans 'Buscar por título, descrição ou núcleo' %}"
+            class="input input-bordered w-full"
+            data-eventos-search-input
+            aria-describedby="eventos-search-feedback"
+          />
+          <button type="submit" class="btn btn-secondary shrink-0" aria-label="{% trans 'Buscar' %}">
+            {% lucide 'search' class='h-4 w-4' aria_hidden='true' %}
+          </button>
+        </div>
+        {% for key, values in request.GET.lists %}
+          {% if key != 'q' and key != 'page' and key|slice:'-5:' != '_page' %}
+            {% for value in values %}
+              <input type="hidden" name="{{ key }}" value="{{ value }}" />
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </form>
+      <p
+        class="text-sm text-[var(--text-secondary)]"
+        data-eventos-search-feedback
+        id="eventos-search-feedback"
+        hidden
+        role="status"
+        aria-live="polite"
+      ></p>
+    </div>
+
+    {% if show_minhas_inscricoes_card %}
+      <details class="card group" data-eventos-section="minhas-inscricoes">
+        <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+          <div class="flex items-start gap-3">
+            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/15">
+              {% lucide 'qr-code' class='h-6 w-6' aria_hidden='true' %}
+            </span>
+            <div class="space-y-1">
+              <p class="text-xl font-semibold">{% trans "Minhas inscrições" %}</p>
+              <p class="text-sm text-[var(--text-secondary)]">{% trans "Acesse seus ingressos e confira o QR Code para o check-in." %}</p>
+            </div>
+          </div>
+          <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+            {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+          </span>
+        </summary>
+        <div class="card-body space-y-4">
+          {% if minhas_inscricoes %}
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {% for inscricao in minhas_inscricoes %}
+                <section class="flex flex-col gap-4 rounded-lg border border-[var(--border)] bg-[var(--background-secondary)] p-4 shadow-sm">
+                  {% if inscricao.qrcode_url %}
+                    <div class="flex flex-col items-center gap-2">
+                      <img
+                        src="{{ inscricao.qrcode_url }}"
+                        alt="{% trans 'QR Code da inscrição' %}"
+                        class="h-40 w-40 rounded-md border border-[var(--border)] bg-white p-2"
+                        loading="lazy"
+                      />
+                      <p class="text-xs text-[var(--text-secondary)]">{% trans "Apresente este QR Code para realizar o check-in." %}</p>
+                    </div>
+                  {% else %}
+                    <p class="text-sm text-[var(--text-secondary)]">{% trans "QR Code indisponível no momento." %}</p>
+                  {% endif %}
+                  <div class="space-y-4">
+                    <div class="space-y-1">
+                      <h3 class="text-lg font-semibold text-[var(--text-primary)]">{{ inscricao.evento.titulo }}</h3>
+                      <p class="text-sm text-[var(--text-secondary)]">
+                        {{ inscricao.evento.data_inicio|date:'SHORT_DATETIME_FORMAT' }} · {{ inscricao.evento.local }}
+                      </p>
+                    </div>
+                    <div class="rounded-lg border border-[var(--border)] bg-[var(--background-primary)] px-3 py-4">
+                      <dl class="grid grid-cols-1 gap-3 text-sm">
+                        <div class="flex flex-col gap-1">
+                          <dt class="text-[var(--text-secondary)]">{% trans "Valor pago" %}</dt>
+                          <dd class="font-medium text-[var(--text-primary)]">
+                            {% if inscricao.valor_exibicao %}
+                              {{ inscricao.valor_exibicao|localize }}
+                            {% else %}
+                              {% trans "Não informado" %}
+                            {% endif %}
+                          </dd>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                          <dt class="text-[var(--text-secondary)]">{% trans "Status" %}</dt>
+                          <dd class="font-medium text-[var(--text-primary)]">{{ inscricao.get_status_display }}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-[var(--text-secondary)]">{% trans "Você ainda não possui inscrições confirmadas em eventos ativos." %}</p>
+          {% endif %}
+        </div>
+      </details>
+    {% endif %}
+
+    {% if show_event_sections %}
+      {% with card_template=list_card_template|default_if_none:'eventos/componentes/card_evento.html'|default:'eventos/componentes/card_evento.html' card_item_name=item_context_name|default_if_none:'evento'|default:'evento' %}
+        <details
+          class="card group"
+          data-eventos-section="ativos"
+          data-eventos-search-section
+          data-eventos-section-total="{{ total_eventos_ativos|default_if_none:0 }}"
+        >
+          <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+            <div class="flex items-start gap-3">
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success-500)]/10 text-[var(--color-success-600)] shadow-lg shadow-[var(--color-success-500)]/15">
+                {% lucide 'activity' class='h-6 w-6' aria_hidden='true' %}
+              </span>
+              <div class="space-y-1">
+                <p class="text-xl font-semibold">{% trans "Eventos ativos" %}</p>
+                {% with total=total_eventos_ativos|default_if_none:0 %}
+                  <p class="text-sm text-[var(--text-secondary)]">
+                    {% blocktrans count count=total %}
+                      {{ count }} evento ativo
+                    {% plural %}
+                      {{ count }} eventos ativos
+                    {% endblocktrans %}
+                  </p>
+                {% endwith %}
+              </div>
+            </div>
+            <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+              {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+            </span>
+          </summary>
+          <div>
+            {% include 'eventos/partials/evento_carousel.html' with page=eventos_ativos_page section='ativos' fetch_url=eventos_carousel_fetch_url search_term=eventos_search_query status_filter=eventos_status_filter empty_message=eventos_ativos_empty_message aria_label=eventos_ativos_aria_label %}
+          </div>
+        </details>
+
+        {% if can_view_planejamento_cancelados %}
+          <details
+            class="card group"
+            data-eventos-section="planejamento"
+            data-eventos-search-section
+            data-eventos-section-total="{{ total_eventos_planejamento|default_if_none:0 }}"
+          >
+            <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+              <div class="flex items-start gap-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)] shadow-lg shadow-[var(--color-warning-500)]/20">
+                  {% lucide 'calendar-clock' class='h-6 w-6' aria_hidden='true' %}
+                </span>
+                <div class="space-y-1">
+                  <p class="text-xl font-semibold">{% trans "Eventos em planejamento" %}</p>
+                  {% with total=total_eventos_planejamento|default_if_none:0 %}
+                    <p class="text-sm text-[var(--text-secondary)]">
+                      {% blocktrans count count=total %}
+                        {{ count }} evento em planejamento
+                      {% plural %}
+                        {{ count }} eventos em planejamento
+                      {% endblocktrans %}
+                    </p>
+                  {% endwith %}
+                </div>
+              </div>
+              <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+                {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+              </span>
+            </summary>
+            <div>
+              {% include 'eventos/partials/evento_carousel.html' with page=eventos_planejamento_page section='planejamento' fetch_url=eventos_carousel_fetch_url search_term=eventos_search_query status_filter=eventos_status_filter empty_message=eventos_planejamento_empty_message aria_label=eventos_planejamento_aria_label %}
+            </div>
+          </details>
+        {% endif %}
+
+        <details
+          class="card group"
+          data-eventos-section="realizados"
+          data-eventos-search-section
+          data-eventos-section-total="{{ total_eventos_concluidos|default_if_none:0 }}"
+        >
+          <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+            <div class="flex items-start gap-3">
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/20">
+                {% lucide 'check' class='h-6 w-6' aria_hidden='true' %}
+              </span>
+              <div class="space-y-1">
+                <p class="text-xl font-semibold">{% trans "Eventos realizados" %}</p>
+                {% with total=total_eventos_concluidos|default_if_none:0 %}
+                  <p class="text-sm text-[var(--text-secondary)]">
+                    {% blocktrans count count=total %}
+                      {{ count }} evento realizado
+                    {% plural %}
+                      {{ count }} eventos realizados
+                    {% endblocktrans %}
+                  </p>
+                {% endwith %}
+              </div>
+            </div>
+            <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+              {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+            </span>
+          </summary>
+          <div>
+            {% include 'eventos/partials/evento_carousel.html' with page=eventos_realizados_page section='realizados' fetch_url=eventos_carousel_fetch_url search_term=eventos_search_query status_filter=eventos_status_filter empty_message=eventos_realizados_empty_message aria_label=eventos_realizados_aria_label %}
+          </div>
+        </details>
+
+        {% if can_view_planejamento_cancelados %}
+          <details
+            class="card group"
+            data-eventos-section="cancelados"
+            data-eventos-search-section
+            data-eventos-section-total="{{ total_eventos_cancelados|default_if_none:0 }}"
+          >
+            <summary class="card-header flex items-center justify-between gap-4 cursor-pointer">
+              <div class="flex items-start gap-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-danger-500)]/10 text-[var(--color-danger-500)] shadow-lg shadow-[var(--color-danger-500)]/20">
+                  {% lucide 'ban' class='h-6 w-6' aria_hidden='true' %}
+                </span>
+                <div class="space-y-1">
+                  <p class="text-xl font-semibold">{% trans "Eventos cancelados" %}</p>
+                  {% with total=total_eventos_cancelados|default_if_none:0 %}
+                    <p class="text-sm text-[var(--text-secondary)]">
+                      {% blocktrans count count=total %}
+                        {{ count }} evento cancelado
+                      {% plural %}
+                        {{ count }} eventos cancelados
+                      {% endblocktrans %}
+                    </p>
+                  {% endwith %}
+                </div>
+              </div>
+              <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:-rotate-180">
+                {% lucide 'chevron-down' class='w-5 h-5' aria_hidden='true' %}
+              </span>
+            </summary>
+            <div>
+              {% include 'eventos/partials/evento_carousel.html' with page=eventos_cancelados_page section='cancelados' fetch_url=eventos_carousel_fetch_url search_term=eventos_search_query status_filter=eventos_status_filter empty_message=eventos_cancelados_empty_message aria_label=eventos_cancelados_aria_label %}
+            </div>
+          </details>
+        {% endif %}
+      {% endwith %}
+    {% endif %}
+
+    {% block list_footer %}{% endblock %}
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+  <script type="module" src="{% static 'eventos/js/eventos-search.js' %}"></script>
+{% endblock %}

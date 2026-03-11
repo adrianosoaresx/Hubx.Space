@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans 'Remover Organização' %} | Hubx{% endblock %}
+
+{% block hero %}
+  {% include 'core/componentes/hero.html' with title=_('Remover Organização') %}
+{% endblock %}
+
+{% block content %}
+<section class="max-w-md mx-auto px-4 py-16">
+  <div class="card bg-[var(--error-light)] text-[var(--error)] text-center">
+    <div class="card-body">
+      <h1 class="text-xl font-semibold mb-4">{% trans 'Confirmar remoção' %}</h1>
+      <p class="text-sm text-[var(--text-secondary)]">
+        {% blocktrans with nome=object.nome %}Tem certeza que deseja remover <strong>{{ nome }}</strong>?{% endblocktrans %}
+      </p>
+
+      <form method="post" class="mt-6 flex justify-center gap-3">
+        {% csrf_token %}
+        {% include '_components/cancel_button.html' with href=back_href fallback_href=back_component_config.fallback_href %}
+        <button type="submit" class="btn btn-danger">{% trans 'Remover' %}</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

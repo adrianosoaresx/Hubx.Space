@@ -1,0 +1,144 @@
+{% load i18n lucide_icons %}
+<div
+  class="space-y-6"
+  id="connections-dashboard"
+  {% if connections_refresh_url %}
+    hx-get="{{ connections_refresh_url }}"
+    hx-trigger="conexoes:refresh"
+    hx-target="this"
+    hx-swap="outerHTML"
+  {% endif %}
+>
+  {% if connections_filter == 'pendentes' %}
+    <details class="card group" aria-labelledby="connections-requests-heading">
+      <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)] shadow-lg shadow-[var(--color-warning-500)]/20">
+            {% lucide 'user-check' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p id="connections-requests-heading" class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Solicitações pendentes" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=total_solicitacoes %}
+                {{ count }} solicitação pendente no total
+              {% plural %}
+                {{ count }} solicitações pendentes no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div class="card-body space-y-6">
+        {% include 'conexoes/partials/conexao_carousel.html' with page=solicitacoes_pendentes_page section='pendentes' fetch_url=conexoes_carousel_fetch_url search_term=conexoes_search_query status_filter=conexoes_status_filter empty_message=solicitacoes_pendentes_empty_message empty_cta=solicitacoes_pendentes_empty_cta aria_label=solicitacoes_pendentes_aria_label %}
+      </div>
+    </details>
+  {% elif connections_filter == 'enviadas' %}
+    <details class="card group" aria-labelledby="connections-sent-heading">
+      <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/20">
+            {% lucide 'user-plus' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p id="connections-sent-heading" class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Solicitações enviadas" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=total_solicitacoes_enviadas %}
+                {{ count }} solicitação enviada no total
+              {% plural %}
+                {{ count }} solicitações enviadas no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div class="card-body space-y-6">
+        {% include 'conexoes/partials/conexao_carousel.html' with page=solicitacoes_enviadas_page section='enviadas' fetch_url=conexoes_carousel_fetch_url search_term=conexoes_search_query status_filter=conexoes_status_filter empty_message=solicitacoes_enviadas_empty_message empty_cta=solicitacoes_enviadas_empty_cta aria_label=solicitacoes_enviadas_aria_label %}
+      </div>
+    </details>
+  {% else %}
+    <details class="card group" aria-labelledby="connections-list-heading">
+      <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-500)]/10 text-[var(--color-primary-500)] shadow-lg shadow-[var(--color-primary-500)]/15">
+            {% lucide 'users' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p id="connections-list-heading" class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Minhas conexões" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=total_conexoes %}
+                {{ count }} conexão ativa no total
+              {% plural %}
+                {{ count }} conexões ativas no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div class="card-body space-y-6">
+        {% include 'conexoes/partials/conexao_carousel.html' with page=minhas_conexoes_page section='minhas' fetch_url=conexoes_carousel_fetch_url search_term=conexoes_search_query status_filter=conexoes_status_filter empty_message=minhas_conexoes_empty_message empty_cta=minhas_conexoes_empty_cta aria_label=minhas_conexoes_aria_label %}
+      </div>
+    </details>
+
+    <details class="card group" aria-labelledby="connections-requests-heading">
+      <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)] shadow-lg shadow-[var(--color-warning-500)]/20">
+            {% lucide 'user-check' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p id="connections-requests-heading" class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Solicitações pendentes" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=total_solicitacoes %}
+                {{ count }} solicitação pendente no total
+              {% plural %}
+                {{ count }} solicitações pendentes no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div class="card-body space-y-6">
+        {% include 'conexoes/partials/conexao_carousel.html' with page=solicitacoes_pendentes_page section='pendentes' fetch_url=conexoes_carousel_fetch_url search_term=conexoes_search_query status_filter=conexoes_status_filter empty_message=solicitacoes_pendentes_empty_message empty_cta=solicitacoes_pendentes_empty_cta aria_label=solicitacoes_pendentes_aria_label %}
+      </div>
+    </details>
+
+    <details class="card group" aria-labelledby="connections-sent-heading">
+      <summary class="card-header flex cursor-pointer items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
+        <div class="flex items-start gap-3">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-info-500)]/10 text-[var(--color-info-600)] shadow-lg shadow-[var(--color-info-500)]/20">
+            {% lucide 'user-plus' class='h-6 w-6' aria_hidden='true' %}
+          </span>
+          <div class="space-y-1">
+            <p id="connections-sent-heading" class="text-xl font-semibold text-[var(--text-primary)]">{% trans "Solicitações enviadas" %}</p>
+            <p class="text-sm text-[var(--text-secondary)]">
+              {% blocktrans count count=total_solicitacoes_enviadas %}
+                {{ count }} solicitação enviada no total
+              {% plural %}
+                {{ count }} solicitações enviadas no total
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+        <span class="text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180">
+          {% lucide 'chevron-down' class='h-5 w-5' aria_hidden='true' %}
+        </span>
+      </summary>
+      <div class="card-body space-y-6">
+        {% include 'conexoes/partials/conexao_carousel.html' with page=solicitacoes_enviadas_page section='enviadas' fetch_url=conexoes_carousel_fetch_url search_term=conexoes_search_query status_filter=conexoes_status_filter empty_message=solicitacoes_enviadas_empty_message empty_cta=solicitacoes_enviadas_empty_cta aria_label=solicitacoes_enviadas_aria_label %}
+      </div>
+    </details>
+  {% endif %}
+</div>
+<div id="modal" role="presentation" aria-live="polite"></div>

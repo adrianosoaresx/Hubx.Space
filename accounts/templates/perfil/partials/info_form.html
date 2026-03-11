@@ -1,0 +1,335 @@
+{% load static widget_tweaks i18n lucide_icons %}
+<div id="perfil-info-card">
+  <div class="card">
+    <div class="card-header">
+      <div class="flex items-start gap-3">
+        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent)]/10 text-[var(--accent)] shadow-lg shadow-[var(--accent)]/20">
+          {% lucide 'id-card' class='h-6 w-6' aria_hidden='true' %}
+        </span>
+        <div class="space-y-1">
+          <h3 class="text-xl font-semibold">{% trans "Informações do perfil" %}</h3>
+          <p class="text-sm text-[var(--text-secondary)]">{% trans "Atualize seus dados pessoais, de contato e redes sociais" %}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-body space-y-6">
+      {% if not is_self %}
+        <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+          {% blocktrans with nome=target_user.get_full_name %}
+            Você está editando o perfil de {{ nome }}.
+          {% endblocktrans %}
+        </div>
+      {% endif %}
+
+      <form
+        method="post"
+        action="{% url 'accounts:perfil_sections_info' %}"
+        enctype="multipart/form-data"
+        class="space-y-8"
+        hx-post="{% url 'accounts:perfil_sections_info' %}"
+        hx-target="closest section"
+        hx-swap="innerHTML"
+        hx-vals='{"public_id": "{{ target_user.public_id|stringformat:"s"|escapejs }}", "username": "{{ target_user.username|default_if_none:''|escapejs }}"}'
+        id="perfil-info-form"
+      >
+        {% csrf_token %}
+        {% if not is_self %}
+          <input type="hidden" name="public_id" value="{{ target_user.public_id }}" />
+          <input type="hidden" name="username" value="{{ target_user.username }}" />
+        {% endif %}
+
+        <div class="space-y-8">
+          <div class="grid gap-6 md:grid-cols-2">
+            <div>
+              {% include '_forms/field.html' with field=form.username %}
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+              data-accordion-toggle
+              aria-expanded="{% if form.razao_social.errors or form.nome_fantasia.errors or form.cnpj.errors or form.cpf.errors or form.area_atuacao.errors or form.descricao_atividade.errors %}true{% else %}false{% endif %}"
+              aria-controls="perfil-company-panel"
+            >
+              <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Informações da empresa" %}</span>
+              <svg
+                class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+                data-accordion-icon
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div
+              id="perfil-company-panel"
+              class="border-t border-[var(--border)] px-4 py-4 space-y-6 {% if not form.razao_social.errors and not form.nome_fantasia.errors and not form.cnpj.errors and not form.cpf.errors and not form.area_atuacao.errors and not form.descricao_atividade.errors %}hidden{% endif %}"
+              data-accordion-panel
+            >
+              <div class="space-y-6">
+                <div>
+                  {% include '_forms/field.html' with field=form.razao_social %}
+                </div>
+                <div>
+                  {% include '_forms/field.html' with field=form.nome_fantasia %}
+                </div>
+              </div>
+              <div class="grid gap-6 md:grid-cols-2">
+                <div>
+                  {% include '_forms/field.html' with field=form.cnpj %}
+                </div>
+                <div>
+                  {% include '_forms/field.html' with field=form.cpf %}
+                </div>
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.area_atuacao %}
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.descricao_atividade %}
+              </div>
+            </div>
+          </div>
+
+        {% with biografia_has_errors=form.biografia.errors %}
+          <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+              data-accordion-toggle
+              aria-expanded="{{ biografia_has_errors|yesno:'true,false' }}"
+              aria-controls="perfil-biografia-panel"
+            >
+              <span class="text-sm font-medium text-[var(--text-primary)]">{{ form.biografia.label }}</span>
+              <svg
+                class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+                data-accordion-icon
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div
+              id="perfil-biografia-panel"
+              class="border-t border-[var(--border)] px-4 py-4 {% if not biografia_has_errors %}hidden{% endif %}"
+              data-accordion-panel
+            >
+              {% include '_forms/field.html' with field=form.biografia hide_label=True %}
+            </div>
+          </div>
+        {% endwith %}
+
+        <div
+          class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]"
+          data-accordion
+        >
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            data-accordion-toggle
+            aria-expanded="{% if form.endereco.errors or form.cidade.errors or form.estado.errors or form.cep.errors %}true{% else %}false{% endif %}"
+            aria-controls="perfil-local-panel"
+          >
+            <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Local" %}</span>
+            <svg
+              class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+              data-accordion-icon
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div
+            id="perfil-local-panel"
+            class="border-t border-[var(--border)] px-4 py-4 space-y-6 {% if not form.endereco.errors and not form.cidade.errors and not form.estado.errors and not form.cep.errors %}hidden{% endif %}"
+            data-accordion-panel
+          >
+            <div>
+              {% include '_forms/field.html' with field=form.endereco %}
+            </div>
+            <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              <div class="md:col-span-2 lg:col-span-2">
+                {% include '_forms/field.html' with field=form.cidade %}
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.estado %}
+              </div>
+              <div class="md:col-span-1 lg:col-span-1">
+                {% include '_forms/field.html' with field=form.cep %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            data-accordion-toggle
+            aria-expanded="{% if form.contato.errors or form.phone_number.errors or form.whatsapp.errors or form.email.errors %}true{% else %}false{% endif %}"
+            aria-controls="perfil-contact-panel"
+          >
+            <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Informações de contato" %}</span>
+            <svg
+              class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+              data-accordion-icon
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div
+            id="perfil-contact-panel"
+            class="border-t border-[var(--border)] px-4 py-4 space-y-6 {% if not form.contato.errors and not form.phone_number.errors and not form.whatsapp.errors and not form.email.errors %}hidden{% endif %}"
+            data-accordion-panel
+          >
+            <div>
+              {% include '_forms/field.html' with field=form.contato %}
+            </div>
+            <div class="grid gap-6 md:grid-cols-2">
+              <div>
+                {% include '_forms/field.html' with field=form.phone_number %}
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.whatsapp %}
+              </div>
+            </div>
+            <div class="grid gap-6 md:grid-cols-2">
+              <div>
+                {% include '_forms/field.html' with field=form.email %}
+              </div>
+              {% if form.birth_date %}
+                <div>
+                  {% include '_forms/field.html' with field=form.birth_date %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            data-accordion-toggle
+            aria-expanded="{% if form.avatar.errors or form.cover.errors %}true{% else %}false{% endif %}"
+            aria-controls="perfil-media-panel"
+          >
+            <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Fotos do perfil" %}</span>
+            <svg
+              class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+              data-accordion-icon
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div
+            id="perfil-media-panel"
+            class="border-t border-[var(--border)] px-4 py-4 {% if not form.avatar.errors and not form.cover.errors %}hidden{% endif %}"
+            data-accordion-panel
+          >
+            <div class="grid gap-6 md:grid-cols-2">
+              <div>
+                {% include '_forms/field.html' with field=form.avatar %}
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.cover %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]" data-accordion>
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            data-accordion-toggle
+            aria-expanded="{% if form.facebook.errors or form.twitter.errors or form.instagram.errors or form.linkedin.errors %}true{% else %}false{% endif %}"
+            aria-controls="perfil-redes-panel"
+          >
+            <span class="text-sm font-medium text-[var(--text-primary)]">{% trans "Redes sociais" %}</span>
+            <svg
+              class="h-5 w-5 text-[var(--text-secondary)] transition-transform duration-200"
+              data-accordion-icon
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div
+            id="perfil-redes-panel"
+            class="border-t border-[var(--border)] px-4 py-4 {% if not form.facebook.errors and not form.twitter.errors and not form.instagram.errors and not form.linkedin.errors %}hidden{% endif %}"
+            data-accordion-panel
+          >
+            <div class="grid gap-6 md:grid-cols-2">
+              <div>
+                {% include '_forms/field.html' with field=form.facebook %}
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.twitter %}
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.instagram %}
+              </div>
+              <div>
+                {% include '_forms/field.html' with field=form.linkedin %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+        <div class="flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
+          {% include '_components/cancel_button.html' with config=cancel_component_config href=back_href fallback_href=cancel_fallback_url classes='btn btn-secondary' %}
+          <button type="submit" class="btn btn-primary">{% trans "Salvar alterações" %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="{% static 'accounts/js/perfil-info-form.js' %}" defer></script>

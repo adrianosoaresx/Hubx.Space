@@ -1,0 +1,670 @@
+// Feed JavaScript - Funcionalidades essenciais
+const getCookie = (name) => {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const cookies = document.cookie ? document.cookie.split('; ') : [];
+  for (let i = 0; i < cookies.length; i += 1) {
+    const [key, ...rest] = cookies[i].split('=');
+    if (key === name) {
+      return decodeURIComponent(rest.join('='));
+    }
+  }
+  return null;
+};
+
+const LINK_REGEX = /https?:\/\/[\w.-]+(?:\.[\w.-]+)*(?::\d+)?[^\s]*/i;
+const linkPreviewCache = new Map();
+
+const extractFirstUrl = (text = '') => {
+  const match = text.match(LINK_REGEX);
+  return match ? match[0] : '';
+};
+
+const getLinkPreviewData = async (url) => {
+  if (!url) return null;
+  const cached = linkPreviewCache.get(url);
+  if (cached) {
+    if (cached instanceof Promise) {
+      return cached;
+    }
+    return Promise.resolve(cached);
+  }
+  const request = fetch(`/api/feed/posts/link-preview/?url=${encodeURIComponent(url)}`, {
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('link preview failed');
+      }
+      return response.json();
+    })
+    .then((data) => {
+      linkPreviewCache.set(url, data);
+      return data;
+    })
+    .catch((err) => {
+      linkPreviewCache.delete(url);
+      throw err;
+    });
+
+  linkPreviewCache.set(url, request);
+  return request;
+};
+
+const setupLinkPreview = (wrapper, scope) => {
+  if (!wrapper || wrapper.dataset.linkPreviewBound === 'true') {
+    return;
+  }
+  wrapper.dataset.linkPreviewBound = 'true';
+
+  const statusEl = wrapper.querySelector('[data-link-preview-status]');
+  const cardEl = wrapper.querySelector('[data-link-preview-card]');
+  const titleEl = wrapper.querySelector('[data-link-preview-title]');
+  const descriptionEl = wrapper.querySelector('[data-link-preview-description]');
+  const imageEl = wrapper.querySelector('[data-link-preview-image]');
+  const imageWrapperEl = wrapper.querySelector('[data-link-preview-image-wrapper]');
+  const urlEl = wrapper.querySelector('[data-link-preview-url]');
+  const hostEl = wrapper.querySelector('[data-link-preview-host]');
+  const sourceSelector = wrapper.dataset.linkPreviewSource;
+
+  const findSourceElement = () => {
+    if (sourceSelector) {
+      return wrapper.closest('article')?.querySelector(sourceSelector)
+        || scope.querySelector(sourceSelector)
+        || wrapper.closest(sourceSelector);
+    }
+    return wrapper.closest('form')?.querySelector('textarea[name="conteudo"]')
+      || scope.querySelector('textarea[name="conteudo"]');
+  };
+
+  const sourceEl = findSourceElement();
+  if (!sourceEl) {
+    return;
+  }
+
+  const setStatus = (text) => {
+    if (!statusEl) return;
+    statusEl.textContent = text || '';
+    statusEl.classList.toggle('hidden', !text);
+  };
+
+  const hidePreview = () => {
+    wrapper.classList.add('hidden');
+    if (cardEl) cardEl.classList.add('hidden');
+    if (imageEl) imageEl.removeAttribute('src');
+    if (imageWrapperEl) imageWrapperEl.classList.add('hidden');
+    setStatus('');
+  };
+
+  const renderPreview = (data) => {
+    if (!cardEl) return;
+    wrapper.classList.remove('hidden');
+    cardEl.classList.remove('hidden');
+    setStatus('');
+    if (titleEl) titleEl.textContent = data.title || data.url || '';
+    if (descriptionEl) descriptionEl.textContent = data.description || '';
+    if (urlEl) urlEl.href = data.url || '#';
+    if (hostEl) hostEl.textContent = data.site_name || '';
+    if (imageEl && imageWrapperEl) {
+      if (data.image) {
+        imageEl.src = data.image;
+        imageWrapperEl.classList.remove('hidden');
+      } else {
+        imageEl.removeAttribute('src');
+        imageWrapperEl.classList.add('hidden');
+      }
+    }
+  };
+
+  const getSourceText = () => {
+    if ('value' in sourceEl) {
+      return sourceEl.value || '';
+    }
+    return sourceEl.textContent || '';
+  };
+
+  let currentPreviewUrl = '';
+  let debounceId;
+
+  const handleUrlChange = () => {
+    const url = extractFirstUrl(getSourceText());
+    if (!url) {
+      currentPreviewUrl = '';
+      hidePreview();
+      return;
+    }
+    if (url === currentPreviewUrl) {
+      wrapper.classList.remove('hidden');
+      return;
+    }
+    if (debounceId) {
+      clearTimeout(debounceId);
+    }
+    debounceId = window.setTimeout(async () => {
+      const loadingText = wrapper.dataset.loadingText || '';
+      const errorText = wrapper.dataset.errorText || '';
+      wrapper.classList.remove('hidden');
+      if (cardEl) cardEl.classList.add('hidden');
+      setStatus(loadingText);
+      try {
+        const data = await getLinkPreviewData(url);
+        currentPreviewUrl = url;
+        renderPreview(data);
+      } catch (err) {
+        currentPreviewUrl = '';
+        setStatus(errorText);
+        if (cardEl) cardEl.classList.add('hidden');
+      }
+    }, 400);
+  };
+
+  const supportsLiveUpdates = 'addEventListener' in sourceEl && ('value' in sourceEl || sourceEl.isContentEditable);
+  if (supportsLiveUpdates) {
+    sourceEl.addEventListener('input', handleUrlChange);
+  }
+  handleUrlChange();
+};
+
+function bytesToMb(bytes) {
+  return (Number(bytes || 0) / (1024 * 1024)).toFixed(0);
+}
+
+function normalizeExts(raw) {
+  return String(raw || '').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+}
+
+function getFileKind(file, input) {
+  const ext = file.name && file.name.includes('.') ? `.${file.name.split('.').pop().toLowerCase()}` : '';
+  const groups = [
+    { kind: 'image', exts: normalizeExts(input.dataset.uploadImageExts), mime: (type) => String(type || '').startsWith('image/') },
+    { kind: 'pdf', exts: normalizeExts(input.dataset.uploadPdfExts), mime: (type) => String(type || '') === 'application/pdf' },
+    { kind: 'video', exts: normalizeExts(input.dataset.uploadVideoExts), mime: (type) => String(type || '').startsWith('video/') },
+  ];
+
+  for (const group of groups) {
+    if (group.mime(file.type) || (ext && group.exts.includes(ext))) {
+      return group;
+    }
+  }
+  return null;
+}
+
+function validateUploadFile(file, input) {
+  const group = getFileKind(file, input);
+  if (!group) {
+    const accepted = [
+      ...normalizeExts(input.dataset.uploadImageExts),
+      ...normalizeExts(input.dataset.uploadPdfExts),
+      ...normalizeExts(input.dataset.uploadVideoExts),
+    ].map((ext) => ext.replace('.', '').toUpperCase()).join(', ');
+    return `Tipo não aceito. Use: ${accepted}.`;
+  }
+
+  const maxByKind = {
+    image: Number(input.dataset.uploadImageMaxBytes || 0),
+    pdf: Number(input.dataset.uploadPdfMaxBytes || 0),
+    video: Number(input.dataset.uploadVideoMaxBytes || 0),
+  };
+  const maxBytes = maxByKind[group.kind] || 0;
+  if (maxBytes > 0 && file.size > maxBytes) {
+    const accepted = group.exts.map((ext) => ext.replace('.', '').toUpperCase()).join(', ');
+    return `Tipo aceito: ${accepted}. Limite: ${bytesToMb(maxBytes)}MB.`;
+  }
+
+  return '';
+}
+
+function bindFeedEvents(root = document) {
+  const textarea = root.querySelector('textarea[name="conteudo"]');
+  const charCounter = root.querySelector("#char-count");
+
+  if (textarea && charCounter) {
+    const updateCharCounter = () => {
+      const currentLength = textarea.value.length;
+      const maxLength = 500;
+
+      charCounter.textContent = currentLength;
+
+      if (currentLength > maxLength * 0.9) {
+        charCounter.style.color = "var(--danger-color)";
+      } else if (currentLength > maxLength * 0.7) {
+        charCounter.style.color = "var(--warning-color)";
+      } else {
+        charCounter.style.color = "var(--text-muted)";
+      }
+    };
+
+    updateCharCounter();
+    textarea.addEventListener("input", updateCharCounter);
+  }
+
+  const fileInputs = Array.from(root.querySelectorAll('input[type="file"]'));
+  const fileWrappers = Array.from(root.querySelectorAll('[data-feed-file-wrapper]'));
+
+  if (fileWrappers.length) {
+    fileWrappers.forEach((wrapper) => {
+      if (wrapper.dataset.feedFileEventsBound === 'true') {
+        return;
+      }
+      wrapper.dataset.feedFileEventsBound = 'true';
+
+      const input = wrapper.querySelector('[data-feed-file-input]');
+      const button = wrapper.querySelector('[data-feed-file-button]');
+      const status = wrapper.querySelector('[data-feed-file-name]');
+      const clearCheckbox = wrapper.querySelector('[data-feed-file-clear]');
+      const errorEl = wrapper.querySelector('[data-feed-file-error]');
+
+      if (!input || !button || !status) {
+        return;
+      }
+
+      const emptyText = status.dataset.emptyText || input.dataset.emptyText || '';
+      const initialText = status.dataset.initialText || '';
+
+      const updateStatus = () => {
+        if (input.files && input.files.length > 0) {
+          const names = Array.from(input.files).map((file) => file.name).filter(Boolean);
+          status.textContent = names.join(', ') || emptyText;
+        } else if (input.value) {
+          const path = input.value.split('\\').pop() || input.value.split('/').pop();
+          status.textContent = path || emptyText;
+        } else if (clearCheckbox && clearCheckbox.checked) {
+          status.textContent = clearCheckbox.dataset.emptyText || emptyText;
+        } else if (initialText) {
+          status.textContent = initialText;
+        } else {
+          status.textContent = emptyText;
+        }
+      };
+
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        input.click();
+      });
+
+      button.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          input.click();
+        }
+      });
+
+      input.addEventListener('change', () => {
+        if (clearCheckbox) {
+          clearCheckbox.checked = false;
+        }
+        const file = input.files && input.files[0];
+        const validationMessage = file ? validateUploadFile(file, input) : '';
+        if (validationMessage) {
+          input.value = '';
+          if (errorEl) {
+            errorEl.textContent = validationMessage;
+            errorEl.classList.remove('hidden');
+          }
+        } else if (errorEl) {
+          errorEl.textContent = '';
+          errorEl.classList.add('hidden');
+        }
+        updateStatus();
+      });
+
+      if (clearCheckbox) {
+        clearCheckbox.addEventListener('change', () => {
+          if (clearCheckbox.checked) {
+            input.value = '';
+          }
+          updateStatus();
+        });
+      }
+
+      updateStatus();
+    });
+  }
+
+  const postForm = root.querySelector(".post-form");
+
+  if (postForm) {
+    // Área de mensagens inline
+    let msgArea = root.querySelector('#form-messages');
+    if (!msgArea) {
+      msgArea = document.createElement('div');
+      msgArea.id = 'form-messages';
+      msgArea.className = 'hidden';
+      postForm.prepend(msgArea);
+    }
+    const showMsg = (text, variant = 'error') => {
+      if (!msgArea) return;
+      const base = 'rounded-xl text-sm p-3 mt-2';
+      const styles =
+        variant === 'error'
+          ? 'border border-[var(--error-light)] bg-[var(--error-light)] text-[var(--error)]'
+          : 'border border-[var(--primary-light)] bg-[var(--primary-light)] text-[var(--primary)]';
+      msgArea.className = `${base} ${styles}`;
+      msgArea.textContent = text;
+      msgArea.classList.remove('hidden');
+    };
+    const clearMsg = () => {
+      if (!msgArea) return;
+      msgArea.className = 'hidden';
+      msgArea.textContent = '';
+    };
+    postForm.addEventListener('submit', (e) => {
+      clearMsg();
+      const content = textarea ? textarea.value.trim() : '';
+      const hasFile = fileInputs.some((input) => input.files && input.files.length > 0);
+      if (content.length === 0 && !hasFile) {
+        e.preventDefault();
+        const msg = window.gettext ? gettext('Por favor, escreva algo ou selecione um arquivo antes de publicar.') : 'Por favor, escreva algo ou selecione um arquivo antes de publicar.';
+        showMsg(msg, 'error');
+        if (textarea) textarea.focus();
+        return false;
+      }
+      if (content.length > 500) {
+        e.preventDefault();
+        const msg = window.gettext ? gettext('O conteúdo deve ter no máximo 500 caracteres.') : 'O conteúdo deve ter no máximo 500 caracteres.';
+        showMsg(msg, 'error');
+        if (textarea) textarea.focus();
+        return false;
+      }
+    });
+  }
+
+  if (textarea) {
+    textarea.addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = Math.min(this.scrollHeight, 300) + "px";
+    });
+  }
+
+  const linkPreviewWrappers = Array.from(root.querySelectorAll('[data-link-preview]'));
+  if (linkPreviewWrappers.length) {
+    linkPreviewWrappers.forEach((wrapper) => setupLinkPreview(wrapper, root));
+  }
+
+  // Tags: chips input
+  const tagsInput = root.querySelector('#tags-input');
+  const chipsContainer = root.querySelector('#tags-chips');
+  const tagsHiddenText = root.querySelector('#id_tags_text');
+  const updateHiddenTags = () => {
+    if (!chipsContainer || !tagsHiddenText) return;
+    const values = Array.from(chipsContainer.querySelectorAll('[data-tag]')).map(n => n.getAttribute('data-tag'));
+    tagsHiddenText.value = values.join(',');
+  };
+  const addChip = (text) => {
+    const value = (text || '').trim();
+    if (!value) return;
+    // Evita duplicadas (case-insensitive)
+    const exists = Array.from(chipsContainer.querySelectorAll('[data-tag]')).some(n => (n.getAttribute('data-tag')||'').toLowerCase() === value.toLowerCase());
+    if (exists) return;
+    const chip = document.createElement('span');
+    chip.className =
+      'inline-flex items-center gap-1 bg-[var(--bg-tertiary)] text-[var(--text-primary)] rounded-full px-3 py-1 text-xs normal-case ring-1 ring-inset ring-[var(--border-secondary)]';
+    chip.setAttribute('data-tag', value);
+
+    const label = document.createElement('span');
+    label.textContent = value;
+    label.className = 'leading-none';
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    const removeLabelBase = window.gettext ? gettext('Remover') : 'Remover';
+    removeButton.setAttribute('aria-label', `${removeLabelBase} ${value}`);
+    removeButton.title = removeButton.getAttribute('aria-label');
+    removeButton.className =
+      'ml-2 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--error)] text-[var(--text-inverse)] transition-colors hover:bg-[var(--color-error-700)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--error-light)] focus-visible:ring-offset-[var(--bg-primary)]';
+    removeButton.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5" aria-hidden="true">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    `;
+    removeButton.addEventListener('click', () => {
+      chip.remove();
+      updateHiddenTags();
+    });
+
+    chip.appendChild(label);
+    chip.appendChild(removeButton);
+    chipsContainer.appendChild(chip);
+    updateHiddenTags();
+  };
+  if (tagsInput && chipsContainer && tagsHiddenText) {
+    // Pre-popular a partir do hidden (ex: após erro de validação)
+    const initial = (tagsHiddenText.value || '').split(',').map(t => t.trim()).filter(Boolean);
+    if (initial.length) {
+      // Evita duplicatas caso o container já tenha itens
+      chipsContainer.innerHTML = '';
+      initial.forEach(addChip);
+    }
+
+    // Permite colar lista separada por vírgulas
+    tagsInput.addEventListener('paste', (e) => {
+      const txt = (e.clipboardData || window.clipboardData).getData('text');
+      if (txt && txt.includes(',')) {
+        e.preventDefault();
+        txt.split(',').map(t => t.trim()).filter(Boolean).forEach(addChip);
+        tagsInput.value = '';
+      }
+    });
+    // Criar chip ao sair do campo com valor
+    tagsInput.addEventListener('change', () => {
+      if (tagsInput.value && tagsInput.value.trim()) {
+        addChip(tagsInput.value);
+        tagsInput.value = '';
+      }
+    });
+    tagsInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addChip(tagsInput.value);
+        tagsInput.value = '';
+      } else if (e.key === 'Backspace' && !tagsInput.value) {
+        const last = chipsContainer.querySelector('[data-tag]:last-child');
+        if (last) {
+          last.remove();
+          updateHiddenTags();
+        }
+      }
+    });
+  }
+
+  // Checkboxes exclusivos (comportamento semelhante a rádio)
+  const exclusiveCheckboxes = Array.from(root.querySelectorAll('input[type="checkbox"][data-exclusive]'));
+  if (exclusiveCheckboxes.length) {
+    const groups = exclusiveCheckboxes.reduce((acc, checkbox) => {
+      const groupName = checkbox.getAttribute('data-exclusive');
+      if (!groupName) {
+        return acc;
+      }
+      if (!acc[groupName]) {
+        acc[groupName] = [];
+      }
+      acc[groupName].push(checkbox);
+      return acc;
+    }, {});
+
+    const syncExclusiveLabelState = (checkbox) => {
+      const label = checkbox.closest('[data-feed-type-option]');
+      if (!label) {
+        return;
+      }
+      label.dataset.checked = checkbox.checked ? 'true' : 'false';
+    };
+
+    Object.values(groups).forEach((group) => {
+      group.forEach((checkbox) => {
+        syncExclusiveLabelState(checkbox);
+
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) {
+            group.forEach((other) => {
+              if (other !== checkbox && other.checked) {
+                other.checked = false;
+                syncExclusiveLabelState(other);
+              }
+            });
+          } else {
+            const anyChecked = group.some((item) => item.checked);
+            if (!anyChecked) {
+              checkbox.checked = true;
+            }
+          }
+
+          syncExclusiveLabelState(checkbox);
+        });
+      });
+    });
+  }
+
+  const csrfToken = getCookie('csrftoken');
+
+  const reactionButtons = Array.from(root.querySelectorAll('.reaction-btn'));
+  if (reactionButtons.length) {
+    reactionButtons.forEach((btn) => {
+      if (btn.dataset.reactionBound === 'true') {
+        return;
+      }
+      btn.dataset.reactionBound = 'true';
+      btn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const postId = btn.dataset.postId;
+        const vote = btn.dataset.reactionType;
+        if (!postId || !vote || btn.dataset.reactionLoading === 'true') {
+          return;
+        }
+
+        const countEl = btn.querySelector('[data-reaction-count]');
+        const iconWrapper = btn.querySelector('[data-reaction-icon]');
+        const activeClass = btn.dataset.activeClass || 'text-emerald-600';
+        const previousCount = parseInt(countEl?.textContent || '0', 10) || 0;
+
+        try {
+          btn.dataset.reactionLoading = 'true';
+          const response = await fetch(`/api/feed/posts/${postId}/reacoes/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrfToken || '',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ vote }),
+          });
+
+          if (response.status === 201) {
+            btn.setAttribute('aria-pressed', 'true');
+            if (iconWrapper) {
+              iconWrapper.classList.add(activeClass);
+            } else {
+              btn.classList.add(activeClass);
+            }
+            if (countEl) {
+              const updated = btn.dataset.reactionState === 'active' ? previousCount : previousCount + 1;
+              countEl.textContent = String(updated);
+            }
+            btn.dataset.reactionState = 'active';
+          } else if (response.status === 204) {
+            btn.setAttribute('aria-pressed', 'false');
+            if (iconWrapper) {
+              iconWrapper.classList.remove(activeClass);
+            } else {
+              btn.classList.remove(activeClass);
+            }
+            if (countEl) {
+              const updated = btn.dataset.reactionState === 'inactive' ? previousCount : Math.max(previousCount - 1, 0);
+              countEl.textContent = String(updated);
+            }
+            btn.dataset.reactionState = 'inactive';
+          } else {
+            let errorDetail = '';
+            try {
+              const data = await response.json();
+              errorDetail = data?.detail || '';
+            } catch (err) {
+              // ignore JSON parsing errors
+            }
+            throw new Error(errorDetail || 'reaction failed');
+          }
+        } catch (error) {
+          const message = window.gettext ? gettext('Erro ao registrar reação') : 'Erro ao registrar reação';
+          window.alert(message);
+        } finally {
+          delete btn.dataset.reactionLoading;
+        }
+      });
+    });
+  }
+
+  const bookmarkButtons = Array.from(root.querySelectorAll('.bookmark-btn'));
+  if (bookmarkButtons.length) {
+    bookmarkButtons.forEach((btn) => {
+      if (btn.dataset.bookmarkBound === 'true') {
+        return;
+      }
+      btn.dataset.bookmarkBound = 'true';
+      btn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const postId = btn.dataset.postId;
+        if (!postId) {
+          return;
+        }
+        try {
+          const response = await fetch(`/api/feed/posts/${postId}/bookmark/`, {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': csrfToken || '',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+          });
+          if (!response.ok) {
+            throw new Error('bookmark failed');
+          }
+          const data = await response.json();
+          const isBookmarked = Boolean(data.bookmarked);
+          btn.classList.toggle('text-[var(--warning)]', isBookmarked);
+          btn.setAttribute('aria-pressed', isBookmarked ? 'true' : 'false');
+        } catch (error) {
+          const message = window.gettext ? gettext('Erro ao salvar') : 'Erro ao salvar';
+          window.alert(message);
+        }
+      });
+    });
+  }
+
+}
+
+function focusPostFromHash(root = document) {
+  const hash = window.location.hash || '';
+  if (!hash.startsWith('#post-')) {
+    return;
+  }
+
+  const target = root.querySelector(hash);
+  if (!target) {
+    return;
+  }
+
+  try {
+    target.focus({ preventScroll: true });
+  } catch (error) {
+    target.focus();
+  }
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  bindFeedEvents();
+  focusPostFromHash();
+});
+
+document.addEventListener("htmx:load", (e) => {
+  bindFeedEvents(e.target);
+});
+
+document.addEventListener("htmx:afterSwap", (e) => {
+  bindFeedEvents(e.target);
+});

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% load i18n static %}
+
+{% block title %}{% trans "Adicionar conexão" %}{% endblock %}
+
+{% block hero %}
+  {% include 'conexoes/componentes/hero_conexoes.html' with title=_('Adicione novas conexões') subtitle=_('Adicione membros da sua organização para se conectar') action_url=dashboard_url action_label=_('Voltar para conexões') action_icon='arrow-left' total_conexoes=total_conexoes total_solicitacoes=total_solicitacoes total_solicitacoes_enviadas=total_solicitacoes_enviadas %}
+{% endblock %}
+
+{% block content %}
+  {% include 'conexoes/partials/search_card.html' with search_form_action=search_form_action search_form_hx_get=None search_form_hx_target=None search_form_hx_push_url=None search_container_id='connections-search-card' back_to_dashboard_url=dashboard_url back_to_dashboard_hx_get=None back_to_dashboard_hx_target=None back_to_dashboard_hx_push_url=None solicitacoes_url=solicitacoes_url solicitacoes_hx_get=None solicitacoes_hx_target=None solicitacoes_hx_push_url=None %}
+{% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <script type="module" src="{% static 'js/carousel.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% load i18n lucide_icons %}
+<article class="card" {% if search_container_id %}id="{{ search_container_id }}"{% endif %}>
+  <div class="card-header flex items-center justify-between gap-3">
+    <h2 class="text-base font-semibold text-[var(--text-primary)]">{% trans "Adicionar conexão" %}</h2>
+    {% if back_to_dashboard_url %}
+      <a
+        href="{{ back_to_dashboard_url }}"
+        class="btn btn-secondary btn-sm"
+        {% if back_to_dashboard_hx_get %}hx-get="{{ back_to_dashboard_hx_get }}"{% endif %}
+        {% if back_to_dashboard_hx_target %}hx-target="#{{ back_to_dashboard_hx_target }}"{% endif %}
+        {% if back_to_dashboard_hx_push_url %}hx-push-url="{{ back_to_dashboard_hx_push_url }}"{% endif %}
+      >
+        {% trans "Voltar para conexões" %}
+      </a>
+    {% endif %}
+  </div>
+
+  <div class="card-body space-y-6">
+    <form
+      method="get"
+      {% if search_form_action %}action="{{ search_form_action }}"{% endif %}
+      class="space-y-4 sm:flex sm:items-end sm:gap-3"
+      {% if search_form_hx_get %}hx-get="{{ search_form_hx_get }}"{% endif %}
+      {% if search_form_hx_target %}hx-target="#{{ search_form_hx_target }}"{% endif %}
+      {% if search_form_hx_push_url %}hx-push-url="{{ search_form_hx_push_url }}"{% endif %}
+    >
+      <div class="sm:flex-1">
+        {% include '_forms/field.html' with field=form.q %}
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm" aria-label="{% trans 'Buscar' %}">
+        {% lucide 'search' class='w-4 h-4' aria_hidden='true' %}
+      </button>
+    </form>
+
+    {% if tem_organizacao %}
+      {% include 'conexoes/partials/conexao_carousel.html' with page=membros_page section='buscar' fetch_url=membros_carousel_fetch_url search_term=q status_filter='' empty_message=membros_empty_message empty_cta=None aria_label=membros_aria_label slide_template='conexoes/partials/conexao_busca_carousel_slide.html' %}
+    {% else %}
+      <p class="text-sm text-[var(--text-secondary)]">{% trans "Você não está vinculado a uma organização no momento." %}</p>
+    {% endif %}
+  </div>
+</article>
+<div id="modal" role="presentation" aria-live="polite"></div>
